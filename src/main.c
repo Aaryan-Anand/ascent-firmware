@@ -13,6 +13,22 @@
 #include "esp_flash.h"
 #include "esp_system.h"
 
+#include "driver/spi_master.h"
+#include "driver/gpio.h"
+#include <rom/ets_sys.h>
+#include <string.h>
+#include <stdio.h>
+
+#include "manual_spi_bus.h"
+
+#include "driver_w25qxx_interface.h"
+#include "driver_w25qxx_basic.h"
+
+#define N 500
+uint8_t write[] = "Hello, World!";
+uint8_t read[]  = "this no work!";
+uint8_t buf[N*sizeof(write)];
+
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -41,6 +57,49 @@ void app_main(void)
            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+
+    /* flash testing */
+    spi_init();
+
+    uint8_t res;
+    uint8_t manufacturer;
+    uint8_t device_id;
+
+    res = w25qxx_basic_init(W25Q512, W25QXX_INTERFACE_SPI, W25QXX_BOOL_FALSE);
+
+    res = w25qxx_basic_get_id((uint8_t *)&manufacturer, (uint8_t *)&device_id);
+    w25qxx_interface_debug_print("w25qxx: manufacturer is 0x%02X device id is 0x%02X.\n", manufacturer, device_id);
+
+    // w25qxx_basic_enable_write();
+
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < sizeof(write); j++) {
+            buf[i*sizeof(write)+j] = write[j];
+        }
+    }
+
+    printf("Trying to write: %u\n", N*sizeof(write));
+
+    // for (int i = 0; i < N; i++) {
+    //     res = w25qxx_basic_write(i * sizeof(write), (uint8_t *)write, sizeof(write));
+    //     if (res) break;
+    // }
+    res = w25qxx_basic_write(0, (uint8_t *)buf, sizeof(buf));
+
+    res = w25qxx_basic_read(sizeof(write) * (N-8) + 5, (uint8_t *)read, sizeof(read));
+
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+
+    // for (int i = 0; i < 8; i++)
+    //     printf("0x%02X, ", read[i]);
+    // printf("\n");
+    printf("%s\n", read);
+
+    // w25qxx_basic_disable_write();
+
+    w25qxx_basic_deinit();
+
+    /* end of flash testing */
 
     for (int i = 10; i >= 0; i--) {
         printf("Restarting in %d seconds...\n", i);
