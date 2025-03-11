@@ -4,7 +4,7 @@
 #include <string.h>
 #include "driver/i2c.h"
 #include "esp_log.h"
-#include "main.h"
+#include "driver_bno055.h"
 
 #define I2C_MASTER_SCL_IO 5
 #define I2C_MASTER_SDA_IO 6        
