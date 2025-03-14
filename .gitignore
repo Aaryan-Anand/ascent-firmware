@@ -4,3 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 .vscode/settings.json
+sdkconfig.esp32-s3-devkitc-1
