@@ -24,11 +24,6 @@
 #include "driver_w25qxx_interface.h"
 #include "driver_w25qxx_basic.h"
 
-#define N 500
-uint8_t write[] = "Hello, World!";
-uint8_t read[]  = "this no work!";
-uint8_t buf[N*sizeof(write)];
-
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -72,33 +67,20 @@ void app_main(void)
 
     // w25qxx_basic_enable_write();
 
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < sizeof(write); j++) {
-            buf[i*sizeof(write)+j] = write[j];
-        }
-    }
+    uint8_t write[] = "Hello, World!";
+    uint8_t read[]  = "this no work!";
 
-    printf("Trying to write: %u\n", N*sizeof(write));
+    printf("Trying to write: %u\n", sizeof(write));
 
-    // for (int i = 0; i < N; i++) {
-    //     res = w25qxx_basic_write(i * sizeof(write), (uint8_t *)write, sizeof(write));
-    //     if (res) break;
-    // }
-    res = w25qxx_basic_write(0, (uint8_t *)buf, sizeof(buf));
+    res = w25qxx_basic_write(0, (uint8_t *)write, sizeof(write));
 
-    res = w25qxx_basic_read(sizeof(write) * (N-8) + 5, (uint8_t *)read, sizeof(read));
+    res = w25qxx_basic_read(0, (uint8_t *)read, sizeof(read));
 
     vTaskDelay(1 / portTICK_PERIOD_MS);
-
-    // for (int i = 0; i < 8; i++)
-    //     printf("0x%02X, ", read[i]);
-    // printf("\n");
-    printf("%s\n", read);
 
     // w25qxx_basic_disable_write();
 
     w25qxx_basic_deinit();
-
     /* end of flash testing */
 
     for (int i = 10; i >= 0; i--) {
