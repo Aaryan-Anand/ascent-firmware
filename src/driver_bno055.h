@@ -187,3 +187,17 @@ typedef enum {
   			NDOF_FMC_OFF = 0X0B,
   			NDOF = 0X0C
 } opr_mode;
+
+esp_err_t i2c_master_init(void);
+
+uint8_t readRegister(uint8_t reg_addr);
+
+esp_err_t writeRegister(uint8_t reg_addr, uint8_t data);
+
+uint8_t bno_getMode();
+
+void bno_setMode(opr_mode mode);
+
+void bno_getCalib(uint8_t *sys, uint8_t *gyro, uint8_t *accel, uint8_t *mag);
+
+void bno_init();

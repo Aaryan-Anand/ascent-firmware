@@ -24,6 +24,8 @@
 #include "driver_w25qxx_interface.h"
 #include "driver_w25qxx_basic.h"
 
+#include "driver_bno055.h"
+
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -52,6 +54,65 @@ void app_main(void)
            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+
+    /* bno055 testing */
+    ESP_ERROR_CHECK(i2c_master_init());
+    printf("I2C initialized successfully");
+
+    bno_init();
+
+    while (1) {
+        // Read accelerometer
+        uint8_t x_lsb = readRegister(BNO_ACC_DATA_X_LSB_ADDR);
+        uint8_t x_msb = readRegister(BNO_ACC_DATA_X_MSB_ADDR);
+        int16_t x_value = (x_msb << 8) | x_lsb;
+
+        uint8_t y_lsb = readRegister(BNO_ACC_DATA_Y_LSB_ADDR);
+        uint8_t y_msb = readRegister(BNO_ACC_DATA_Y_MSB_ADDR);
+        int16_t y_value = (y_msb << 8) | y_lsb;
+
+        uint8_t z_lsb = readRegister(BNO_ACC_DATA_Z_LSB_ADDR);
+        uint8_t z_msb = readRegister(BNO_ACC_DATA_Z_MSB_ADDR);
+        int16_t z_value = (z_msb << 8) | z_lsb;
+
+        // Read gyroscope
+        uint8_t gx_lsb = readRegister(BNO_GYR_DATA_X_LSB_ADDR);
+        uint8_t gx_msb = readRegister(BNO_GYR_DATA_X_MSB_ADDR);
+        int16_t gx_value = (gx_msb << 8) | gx_lsb;
+
+        uint8_t gy_lsb = readRegister(BNO_GYR_DATA_Y_LSB_ADDR);
+        uint8_t gy_msb = readRegister(BNO_GYR_DATA_Y_MSB_ADDR);
+        int16_t gy_value = (gy_msb << 8) | gy_lsb;
+
+        uint8_t gz_lsb = readRegister(BNO_GYR_DATA_Z_LSB_ADDR);
+        uint8_t gz_msb = readRegister(BNO_GYR_DATA_Z_MSB_ADDR);
+        int16_t gz_value = (gz_msb << 8) | gz_lsb;
+
+        // Read magnetometer
+        uint8_t mx_lsb = readRegister(BNO_MAG_DATA_X_LSB_ADDR);
+        uint8_t mx_msb = readRegister(BNO_MAG_DATA_X_MSB_ADDR);
+        int16_t mx_value = (mx_msb << 8) | mx_lsb;
+
+        uint8_t my_lsb = readRegister(BNO_MAG_DATA_Y_LSB_ADDR);
+        uint8_t my_msb = readRegister(BNO_MAG_DATA_Y_MSB_ADDR);
+        int16_t my_value = (my_msb << 8) | my_lsb;
+
+        uint8_t mz_lsb = readRegister(BNO_MAG_DATA_Z_LSB_ADDR);
+        uint8_t mz_msb = readRegister(BNO_MAG_DATA_Z_MSB_ADDR);
+        int16_t mz_value = (mz_msb << 8) | mz_lsb;
+
+        uint8_t sys_cal, gyro_cal, acc_cal, mag_cal;
+        bno_getCalib(&sys_cal, &gyro_cal, &acc_cal, &mag_cal);
+
+        printf("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", 
+               x_value, y_value, z_value,      // Accelerometer
+               gx_value, gy_value, gz_value,   // Gyroscope
+               mx_value, my_value, mz_value,   // Magnetometer
+               sys_cal, gyro_cal, acc_cal, mag_cal); // Calibration status
+
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+    /* end bno055*/
 
     /* flash testing */
     spi_init();
