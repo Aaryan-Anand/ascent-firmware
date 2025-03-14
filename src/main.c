@@ -135,7 +135,11 @@ void app_main(void)
 
     res = w25qxx_basic_write(0, (uint8_t *)write, sizeof(write));
 
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+
     res = w25qxx_basic_read(0, (uint8_t *)read, sizeof(read));
+
+    printf("Read: %s\n", read);
 
     vTaskDelay(1 / portTICK_PERIOD_MS);
 
