@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16.0)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(ascent-firmware)
 
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 set(EXTRA_COMPONENT_DIRS 
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/patch/adc
