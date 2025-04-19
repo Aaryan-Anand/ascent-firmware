@@ -16,6 +16,14 @@
 #include "driver_psu.h"
 #include "driver_bno055.h"
 
+#include "driver/gpio.h"
+#include "neopixel.h"
+
+#define PIXEL_COUNT  1
+#define NEOPIXEL_PIN GPIO_NUM_21
+
+tNeopixelContext neopixel;
+
 #include "math.h"
 
 #include "ascent_r2_hardware_definition.h"  // Hardware definitions
@@ -26,10 +34,10 @@ double ground_pressure = 0;
 
 // data sharing variables
 _Atomic uint32_t timestamp;
-_Atomic float latitude;
-_Atomic float longitude;
+float latitude;
+float longitude;
 _Atomic float barometric_agl;
-_Atomic uint32_t gps_altitude;
+uint32_t gps_altitude;
 _Atomic float barometric_velocity;
 _Atomic double acceleration;
 _Atomic uint8_t pyro_arm = 0;
@@ -191,7 +199,9 @@ TaskHandle_t bno_task_handle = NULL;
 // === Task Definitions ===
 
 void flight_task(void *pvParameters) {
+
     flight_state = FS_ON_PAD;
+    
 
     while (1) {
         switch (flight_state) {
@@ -209,15 +219,9 @@ void flight_task(void *pvParameters) {
 
 void gps_task(void *pvParameters) {
 
-    portMUX_TYPE *my_spinlock = malloc(sizeof(portMUX_TYPE));
-
-    portMUX_INITIALIZE(my_spinlock);
-
     while (1) {
         // GPS polling
-        // taskENTER_CRITICAL(my_spinlock);
         parse_NMEA(&latitude, &longitude, &gps_altitude);
-        // taskEXIT_CRITICAL(my_spinlock);
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -252,7 +256,6 @@ void lora_tx(void *pvParameters) {
 
         vTaskDelay(pdMS_TO_TICKS(10));
 
-        // note(NOTE_E,6,100);
     }
 }
 
@@ -343,6 +346,12 @@ void app_main(void) {
 
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
+    tNeopixelContext neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
+
+    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
+
+    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
+
     printf("\n\n\nStarting application...\n");
 
     fflush(stdout);
@@ -383,6 +392,9 @@ void app_main(void) {
 
     pyro_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
+    note(NOTE_G, 8, 300);
 
     // Create tasks without pinning to specific cores
     xTaskCreatePinnedToCore(flight_task, "flight_task", 4096, NULL, 5, &flight_task_handle, 1);

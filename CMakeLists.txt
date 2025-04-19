@@ -15,6 +15,7 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/hardware_io/pyro
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/indicator
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/lora
+    ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/neopixel
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
