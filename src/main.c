@@ -24,16 +24,17 @@
 
 double ground_pressure = 0;
 
-uint32_t timestamp;
-float latitude;
-float longitude;
-float barometric_agl;
-uint32_t gps_altitude;
-float barometric_velocity;
-double acceleration;
-uint8_t pyro_arm = 0;
-uint8_t flight_state;
+// data sharing variables
+_Atomic uint32_t timestamp;
+_Atomic float latitude;
+_Atomic float longitude;
+_Atomic float barometric_agl;
+_Atomic uint32_t gps_altitude;
+_Atomic float barometric_velocity;
+_Atomic double acceleration;
+_Atomic uint8_t pyro_arm = 0;
 
+// lora stuff
 typedef struct {
     uint32_t timestamp;
     float latitude;
@@ -46,8 +47,139 @@ typedef struct {
     uint8_t flight_state;
 } lora_packet_t;
 
+// flight state information
 #define APOGEE_MIN 300
+#define MAINS_ALT 1000
 #define POWERED_ALT 30
+
+enum FlightState
+{
+    FS_ON_PAD = 0,
+    FS_POWERED_FLIGHT,
+    FS_COASTING,
+    FS_UNDER_DROGUES,
+    FS_UNDER_MAINS,
+    FS_LANDED,
+
+    FS_FREEFALL,
+};
+uint8_t flight_state;
+
+void flight_on_pad()
+{
+    // TODO: also check for accelerometer spike
+    if (barometric_agl > POWERED_ALT) {
+        flight_state = FS_POWERED_FLIGHT;
+        return;
+    }
+
+    vTaskDelay(30 / portTICK_PERIOD_MS);
+}
+
+void flight_powered_flight()
+{
+    // TODO: use accelerometer to detect motor burn out and switch to coasting state
+    // for now just instantly switch to the coasting state
+    flight_state = FS_COASTING;
+}
+
+bool deploy_drogues()
+{
+    bool cont;
+
+    for (int i = 0; i < 2; i++) {
+        cont = pyro_continuity(PYRO_CHANNEL_1);
+        if (cont) {
+            pyro_activate(PYRO_CHANNEL_1, 150*(i+1));
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+            cont = pyro_continuity(PYRO_CHANNEL_1);
+            if (!cont) return true;
+        }
+    }
+
+    return false;
+}
+
+bool deploy_mains()
+{
+    bool cont;
+
+    for (int i = 0; i < 2; i++) {
+        cont = pyro_continuity(PYRO_CHANNEL_2);
+        if (cont) {
+            pyro_activate(PYRO_CHANNEL_2, 150*(i+1));
+            vTaskDelay(50 / portTICK_PERIOD_MS);
+            cont = pyro_continuity(PYRO_CHANNEL_2);
+            if (!cont) return true;
+        }
+    }
+
+    return false;
+}
+
+void flight_coasting()
+{
+    static float velocity_samples[10] = {0};
+    static int sample_index = 0;
+    float sum = 0;
+    float average_velocity = 0;
+
+    // Update velocity samples
+    velocity_samples[sample_index] = barometric_velocity;
+    sample_index = (sample_index + 1) % 10;
+
+    // Calculate the sum of all samples
+    for (int i = 0; i < 10; i++) {
+        sum += velocity_samples[i];
+    }
+
+    // Calculate the average velocity
+    average_velocity = sum / 10.0;
+
+    if (barometric_agl > APOGEE_MIN && average_velocity < 0) {
+        if (deploy_drogues()) flight_state = FS_UNDER_DROGUES;
+        else flight_state = FS_FREEFALL;
+        return;
+    }
+
+    vTaskDelay(30 / portTICK_PERIOD_MS);
+}
+
+void flight_under_drogues()
+{
+    if (barometric_agl < MAINS_ALT) {
+        if (deploy_mains()) flight_state = FS_UNDER_MAINS;
+    }
+
+    vTaskDelay(30 / portTICK_PERIOD_MS);
+}
+
+void flight_under_mains()
+{
+    static float velocity_samples[10] = {0};
+    static int sample_index = 0;
+    float sum = 0;
+    float average_velocity = 0;
+
+    // Update velocity samples
+    velocity_samples[sample_index] = barometric_velocity;
+    sample_index = (sample_index + 1) % 10;
+
+    // Calculate the sum of all samples
+    for (int i = 0; i < 10; i++) {
+        sum += velocity_samples[i];
+    }
+
+    // Calculate the average velocity
+    average_velocity = sum / 10.0;
+
+    if (abs(average_velocity) < 2) {
+        flight_state = FS_LANDED;
+        return;
+    }
+
+    vTaskDelay(30 / portTICK_PERIOD_MS);
+}
 
 // === Task Handles ===
 TaskHandle_t flight_task_handle = NULL;
@@ -59,81 +191,19 @@ TaskHandle_t bno_task_handle = NULL;
 // === Task Definitions ===
 
 void flight_task(void *pvParameters) {
-    flight_state = 0;
+    flight_state = FS_ON_PAD;
 
-    while (1){
-        // beep out continuity
-        flight_state = 0;
-
-        if (barometric_agl > POWERED_ALT) {
-            flight_state = 1;
-            break;
+    while (1) {
+        switch (flight_state) {
+            case FS_ON_PAD: flight_on_pad(); break;
+            case FS_POWERED_FLIGHT: flight_powered_flight(); break;
+            case FS_COASTING: flight_coasting(); break;
+            case FS_UNDER_DROGUES: flight_under_drogues(); break;
+            case FS_UNDER_MAINS: flight_under_mains(); break;
+            case FS_FREEFALL: vTaskDelay(100 / portTICK_PERIOD_MS); break;
+            case FS_LANDED: vTaskDelay(100 / portTICK_PERIOD_MS); break;
+            default: assert(0); break;
         }
-
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-    }
-    
-    while (1){
-        static float velocity_samples[10] = {0};
-        static int sample_index = 0;
-        float sum = 0;
-        float average_velocity = 0;
-
-        // Update velocity samples
-        velocity_samples[sample_index] = barometric_velocity;
-        sample_index = (sample_index + 1) % 10;
-
-        // Calculate the sum of all samples
-        for (int i = 0; i < 10; i++) {
-            sum += velocity_samples[i];
-        }
-
-        // Calculate the average velocity
-        average_velocity = sum / 10.0;
-
-        if (barometric_agl > APOGEE_MIN && average_velocity < 0) {
-            flight_state = 2;
-            break;
-        }
-
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-    }
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    pyro_init();
-
-    bool cont = pyro_continuity(PYRO_CHANNEL_1);
-    
-    if (cont == 1) {
-            pyro_arm = 1;
-    }
-
-    flight_state = 3;
-
-    int i;
-
-    for (i = 0; i < 2; i++) {
-        bool cont = pyro_continuity(PYRO_CHANNEL_1);
-        if (cont == 0) {
-            flight_state = 99;
-            break;
-        }
-        if (i == 0) {
-            // pyro_activate(PYRO_CHANNEL_1, 150);
-            flight_state = 4;
-        } else {
-            // pyro_activate(PYRO_CHANNEL_1, 300);
-            flight_state = 98;
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-        flight_state = 5;
-    }
-    
-    while (1){ 
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        flight_state = 5;
     }
 }
 
@@ -158,7 +228,6 @@ void lora_tx(void *pvParameters) {
     uint8_t packet_data[sizeof(lora_packet_t)];
 
     while (1) {
-        
         lora_packet_t packet;
         packet.latitude = latitude;
         packet.longitude = longitude;
@@ -276,8 +345,6 @@ void app_main(void) {
 
     printf("\n\n\nStarting application...\n");
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-
     fflush(stdout);
 
     esp_err_t ret1 = i2c_manager_deinit(I2C_NUM_0);
@@ -286,7 +353,7 @@ void app_main(void) {
         return;
     }
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     esp_err_t ret = i2c_manager_init(I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ, I2C_MASTER_PORT);
     if (ret != ESP_OK) {
@@ -294,27 +361,28 @@ void app_main(void) {
         return;
     }
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     gps_init();
-
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     bmp390_sensorinit();
-
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     update_ground_pressure();
-
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_initialize();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     bno055_init(I2C_MASTER_PORT);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    pyro_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     // Create tasks without pinning to specific cores
     xTaskCreatePinnedToCore(flight_task, "flight_task", 4096, NULL, 5, &flight_task_handle, 1);
