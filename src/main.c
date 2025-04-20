@@ -381,9 +381,9 @@ void app_main(void) {
 
     init_everything();
 
-    gpio_set_direction(FLASH_CS, GPIO_MODE_OUTPUT);
-    gpio_set_level(FLASH_CS, 1);
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    // gpio_set_direction(FLASH_CS, GPIO_MODE_OUTPUT);
+    // gpio_set_level(FLASH_CS, 1);
+    // vTaskDelay(100 / portTICK_PERIOD_MS);
 
     // gpio_set_direction(LORA_CS, GPIO_MODE_OUTPUT);
     // gpio_set_level(LORA_CS, 1);
@@ -397,82 +397,82 @@ void app_main(void) {
     // TaskHandle_t megolavania_task_handle;
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 1);
 
-    res = w25qxx_init();
-    if (res) fail_state(FAIL_FLASH_INIT);
+//     res = w25qxx_init();
+//     if (res) fail_state(FAIL_FLASH_INIT);
 
-    if (pyro_continuity(PYRO_CHANNEL_1) && pyro_continuity(PYRO_CHANNEL_2)) {
-        printf("DOING CHIP ERASE\n");
-        // res = w25qxx_chip_erase();
-        // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-        for (int i = 0; i < 500; i++) {
-            res = w25qxx_sector_erase(i*4096);
-            if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-        }
-    } else {
-        addr = 0;
-        printf("DUMPING DATA\n");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        while (1) {
-            w25qxx_read(addr, &fp, sizeof(flash_packet));
-            addr += sizeof(flash_packet);
-            /*
-    int16_t acc_x, acc_y, acc_z;
-    int16_t mag_x, mag_y, mag_z;
-    int16_t gyr_x, gyr_y, gyr_z;
-    float x_accel, y_accel, z_accel;
-    int64_t timestamp;
-    float latitude;
-    float longitude;
-    float barometric_agl;
-    uint32_t gps_altitude;
-    float barometric_velocity;
-    float average_barometric_velocity;
-    double acceleration;
-    uint8_t pyro_arm = 0;
-    uint8_t flight_state;
+//     if (pyro_continuity(PYRO_CHANNEL_1) && pyro_continuity(PYRO_CHANNEL_2)) {
+//         printf("DOING CHIP ERASE\n");
+//         // res = w25qxx_chip_erase();
+//         // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
+//         for (int i = 0; i < 500; i++) {
+//             res = w25qxx_sector_erase(i*4096);
+//             if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
+//         }
+//     } else {
+//         addr = 0;
+//         printf("DUMPING DATA\n");
+//         vTaskDelay(5000 / portTICK_PERIOD_MS);
+//         while (1) {
+//             w25qxx_read(addr, &fp, sizeof(flash_packet));
+//             addr += sizeof(flash_packet);
+//             /*
+//     int16_t acc_x, acc_y, acc_z;
+//     int16_t mag_x, mag_y, mag_z;
+//     int16_t gyr_x, gyr_y, gyr_z;
+//     float x_accel, y_accel, z_accel;
+//     int64_t timestamp;
+//     float latitude;
+//     float longitude;
+//     float barometric_agl;
+//     uint32_t gps_altitude;
+//     float barometric_velocity;
+//     float average_barometric_velocity;
+//     double acceleration;
+//     uint8_t pyro_arm = 0;
+//     uint8_t flight_state;
 
-        // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
-    */
-   printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %"PRId64", %f, %f, %f, %lu, %f, %f, %f, %d, %d\n",
-                fp.acc_x,
-                fp.acc_y,
-                fp.acc_z,
-                fp.mag_x,
-                fp.mag_y,
-                fp.mag_z,
-                fp.gyr_x,
-                fp.gyr_y,
-                fp.gyr_z,
-                fp.x_accel,
-                fp.y_accel,
-                fp.z_accel,
-                fp.timestamp,
-                fp.latitude,
-                fp.longitude,
-                fp.barometric_agl,
-                fp.gps_altitude,
-                fp.barometric_velocity,
-                fp.average_barometric_velocity,
-                fp.acceleration,
-                fp.pyro_arm,
-                fp.flight_state);
-            bool all = true;
-            char* buf = (char*) &fp;
-            for (int i = 0; i < sizeof(flash_packet); i++) {
-                if (buf[i] != 0xFF) all=false;
-            }
-            if (all) break;
-        }
+//         // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
+//     */
+//    printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %"PRId64", %f, %f, %f, %lu, %f, %f, %f, %d, %d\n",
+//                 fp.acc_x,
+//                 fp.acc_y,
+//                 fp.acc_z,
+//                 fp.mag_x,
+//                 fp.mag_y,
+//                 fp.mag_z,
+//                 fp.gyr_x,
+//                 fp.gyr_y,
+//                 fp.gyr_z,
+//                 fp.x_accel,
+//                 fp.y_accel,
+//                 fp.z_accel,
+//                 fp.timestamp,
+//                 fp.latitude,
+//                 fp.longitude,
+//                 fp.barometric_agl,
+//                 fp.gps_altitude,
+//                 fp.barometric_velocity,
+//                 fp.average_barometric_velocity,
+//                 fp.acceleration,
+//                 fp.pyro_arm,
+//                 fp.flight_state);
+//             bool all = true;
+//             char* buf = (char*) &fp;
+//             for (int i = 0; i < sizeof(flash_packet); i++) {
+//                 if (buf[i] != 0xFF) all=false;
+//             }
+//             if (all) break;
+//         }
 
-        while (1) {
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
-            vTaskDelay(500/portTICK_PERIOD_MS);
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
-            vTaskDelay(500/portTICK_PERIOD_MS);
+//         while (1) {
+//             neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
+//             vTaskDelay(500/portTICK_PERIOD_MS);
+//             neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
+//             vTaskDelay(500/portTICK_PERIOD_MS);
 
-            vTaskDelay(1000/portTICK_PERIOD_MS);
-        }
-    }
+//             vTaskDelay(1000/portTICK_PERIOD_MS);
+//         }
+//     }
 
     // vTaskDelete(megolavania_task_handle);
 
@@ -481,6 +481,16 @@ void app_main(void) {
     note(NOTE_G, 8, 300);
     note(NOTE_G, 7, 300);
 
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (pyro_continuity(j+1)) note(NOTE_E, 8, 300);
+            else note(NOTE_G, 5, 300);
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
 
 #ifdef LED_PYRO
     pyro_activate(PYRO_CHANNEL_1, 150, 0);
@@ -582,38 +592,39 @@ void app_main(void) {
                         &mag_x, &mag_y, &mag_z,
                         &gyr_x, &gyr_y, &gyr_z);
             baro_task();
-            double x_accel, y_accel, z_accel;
-            h3lis331dl_read_accel(&x_accel, &y_accel, &z_accel);
+            // double x_accel, y_accel, z_accel;
+            // h3lis331dl_read_accel(&x_accel, &y_accel, &z_accel);
             lora_task();
+            acceleration = sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z);
 
-            if (addr < (uint32_t)6e6) {
-            // if (false) {
-                fp.acc_x = acc_x;
-                fp.acc_y = acc_y;
-                fp.acc_z = acc_z;
-                fp.mag_x = mag_x;
-                fp.mag_y = mag_y;
-                fp.mag_z = mag_z;
-                fp.gyr_x = gyr_x;
-                fp.gyr_y = gyr_y;
-                fp.gyr_z = gyr_z;
-                fp.x_accel = x_accel;
-                fp.y_accel = y_accel;
-                fp.z_accel = z_accel;
-                fp.timestamp = start_time;
-                fp.latitude = latitude;
-                fp.longitude = longitude;
-                fp.barometric_agl = barometric_agl;
-                fp.gps_altitude = gps_altitude;
-                fp.barometric_velocity = barometric_velocity;
-                fp.average_barometric_velocity = average_barometric_velocity;
-                fp.acceleration = acceleration;
-                fp.pyro_arm = pyro_arm;
-                fp.flight_state = flight_state;
+            // if (addr < (uint32_t)6e6) {
+            // // if (false) {
+            //     fp.acc_x = acc_x;
+            //     fp.acc_y = acc_y;
+            //     fp.acc_z = acc_z;
+            //     fp.mag_x = mag_x;
+            //     fp.mag_y = mag_y;
+            //     fp.mag_z = mag_z;
+            //     fp.gyr_x = gyr_x;
+            //     fp.gyr_y = gyr_y;
+            //     fp.gyr_z = gyr_z;
+            //     fp.x_accel = x_accel;
+            //     fp.y_accel = y_accel;
+            //     fp.z_accel = z_accel;
+            //     fp.timestamp = start_time;
+            //     fp.latitude = latitude;
+            //     fp.longitude = longitude;
+            //     fp.barometric_agl = barometric_agl;
+            //     fp.gps_altitude = gps_altitude;
+            //     fp.barometric_velocity = barometric_velocity;
+            //     fp.average_barometric_velocity = average_barometric_velocity;
+            //     fp.acceleration = acceleration;
+            //     fp.pyro_arm = pyro_arm;
+            //     fp.flight_state = flight_state;
 
-                w25qxx_write(addr, &fp, sizeof(flash_packet));
-                addr += sizeof(flash_packet);
-            }
+            //     w25qxx_write(addr, &fp, sizeof(flash_packet));
+            //     addr += sizeof(flash_packet);
+            // }
         }
 
 
