@@ -1,10 +1,6 @@
 idf_component_register(
     SRCS 
         "main.c"
-        "flightmgr_task.c"
-        "globals.c"
-        "gps_task.c"
-        "imu_task.c"
         "lora_task.c"
-        "baro_task.c"
+        "megolavania.c"
 )
