@@ -9,10 +9,12 @@
 #include "stdlib.h"
 #include "stdint.h"
 #include "globals.h"
-#include "freertos/semphr.h"
 #include "string.h"
 
-void lora_task_init() {
+uint8_t packet_data[sizeof(lora_packet_t)];
+
+void lora_task_init()
+{
  	lora_init();
 	
 	lora_set_frequency(915e6); // 915MHz
@@ -25,52 +27,43 @@ void lora_task_init() {
 	lora_set_coding_rate(cr);
 	//lora_set_coding_rate(CONFIG_CODING_RATE);
 	//cr = lora_get_coding_rate();
-	ESP_LOGI(pcTaskGetName(NULL), "coding_rate=%d", cr);
+	printf("coding_rate=%d", cr);
 
 	lora_set_bandwidth(bw);
 	//lora_set_bandwidth(CONFIG_BANDWIDTH);
 	//int bw = lora_get_bandwidth();
-	ESP_LOGI(pcTaskGetName(NULL), "bandwidth=%d", bw);
+	printf("bandwidth=%d", bw);
 
 	lora_set_spreading_factor(sf);
 	//lora_set_spreading_factor(CONFIG_SF_RATE);
 	//int sf = lora_get_spreading_factor();
-	ESP_LOGI(pcTaskGetName(NULL), "spreading_factor=%d", sf);
+	printf("spreading_factor=%d", sf);
 
 	lora_set_tx_power(17);
 }
 
+void lora_task()
+{
+    lora_packet_t packet;
+    packet.latitude = latitude;
+    packet.longitude = longitude;
+    packet.barometric_agl = barometric_agl;
+    packet.gps_altitude = gps_altitude;
+    // packet.barometric_velocity = average_velocity;
+    packet.barometric_velocity = average_barometric_velocity;
+    packet.acceleration = acceleration;
+    packet.pyro_arm = pyro_arm;
+    packet.flight_state = flight_state;
 
-void lora_tx(void *pvParameters) {
-    // Static allocation for packet_data
-    uint8_t packet_data[sizeof(lora_packet_t)];
+    packet.timestamp = esp_timer_get_time() / 1e3;
 
-    while (1) {
-        lora_packet_t packet;
-        packet.latitude = latitude;
-        packet.longitude = longitude;
-        packet.barometric_agl = barometric_agl;
-        packet.gps_altitude = gps_altitude;
-        packet.barometric_velocity = barometric_velocity;
-        packet.acceleration = acceleration;
-        packet.pyro_arm = pyro_arm;
-        packet.flight_state = flight_state;
+    memcpy(packet_data, &packet, sizeof(lora_packet_t));
+    lora_send_packet(packet_data, sizeof(lora_packet_t));
 
-        packet.timestamp = esp_timer_get_time() / 1e3;
+    // printf("Sent packet at %ld ms: Latitude: %.6f, Longitude: %.6f, GPSAltitude: %ld, Baro Altitude: %f, Baro Velocity: %f, Acceleration: %f, Pyro Arm: %d, Flight State: %d\n", packet.timestamp, packet.latitude, packet.longitude, packet.gps_altitude, packet.barometric_agl, packet.barometric_velocity, packet.acceleration, packet.pyro_arm, packet.flight_state);
 
-        memcpy(packet_data, &packet, sizeof(lora_packet_t));
-        if (xSemaphoreTake(spi_mutex, portMAX_DELAY)) {
-            lora_send_packet(packet_data, sizeof(lora_packet_t));
-            xSemaphoreGive(spi_mutex);
-        }
-
-        printf("Sent packet at %ld ms: Latitude: %.6f, Longitude: %.6f, GPSAltitude: %ld, Baro Altitude: %f, Baro Velocity: %f, Acceleration: %f, Pyro Arm: %d, Flight State: %d\n", packet.timestamp, packet.latitude, packet.longitude, packet.gps_altitude, packet.barometric_agl, packet.barometric_velocity, packet.acceleration, packet.pyro_arm, packet.flight_state);
-
-        int lost = lora_packet_lost();
-		if (lost != 0) {
-			printf("%d packets lost", lost);
-		}
-
-        vTaskDelay(pdMS_TO_TICKS(10));
+    int lost = lora_packet_lost();
+    if (lost != 0) {
+        printf("%d packets lost", lost);
     }
 }

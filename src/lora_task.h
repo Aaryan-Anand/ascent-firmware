@@ -1,5 +1,5 @@
-#ifndef LORA_H
-#define LORA_H
+#ifndef LORA_TASK_H
+#define LORA_TASK_H
 
 #include "stdint.h"
 #include "lora.h"
@@ -21,6 +21,6 @@ typedef struct {
 
 void lora_task_init();
 
-void lora_tx(void *pvParameters);
+void lora_task();
 
 #endif
