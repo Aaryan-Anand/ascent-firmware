@@ -5,6 +5,6 @@
 #define MAINS_ALT 5000
 #define POWERED_ALT 30
 
-#define LED_PYRO 1
+// #define LED_PYRO 1
 
 #endif
