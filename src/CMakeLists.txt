@@ -4,4 +4,5 @@ idf_component_register(
         "lora_task.c"
         "megolavania.c"
         "sensor_manager.c"
+        "flightState_manager.c"
 )
