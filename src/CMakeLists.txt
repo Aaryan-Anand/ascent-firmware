@@ -3,4 +3,5 @@ idf_component_register(
         "main.c"
         "lora_task.c"
         "megolavania.c"
+        "sensor_manager.c"
 )
