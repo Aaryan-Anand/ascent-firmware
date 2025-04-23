@@ -1,7 +1,7 @@
 #ifndef FLIGHT_CONFIG_H
 #define FLIGHT_CONFIG_H
 
-#define APOGEE_MIN 50
+#define APOGEE_MIN 0
 #define MAINS_ALT 125
 #define POWERED_ALT 15
 
