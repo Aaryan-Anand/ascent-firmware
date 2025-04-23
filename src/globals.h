@@ -13,5 +13,6 @@ extern float average_barometric_velocity;
 extern double acceleration;
 extern uint8_t pyro_arm;
 extern uint8_t flight_state;
+extern double batt_voltage;
 
 #endif

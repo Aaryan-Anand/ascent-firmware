@@ -10,6 +10,7 @@
 #include "stdint.h"
 #include "globals.h"
 #include "string.h"
+#include "driver_psu.h"
 
 uint8_t packet_data[sizeof(lora_packet_t)];
 
@@ -44,6 +45,7 @@ void lora_task_init()
 
 void lora_task()
 {
+	batt_voltage = psu_read_battery_voltage();
     lora_packet_t packet;
     packet.latitude = latitude;
     packet.longitude = longitude;
@@ -54,13 +56,14 @@ void lora_task()
     packet.acceleration = acceleration;
     packet.pyro_arm = pyro_arm;
     packet.flight_state = flight_state;
+	packet.batt_voltage = batt_voltage;
 
     packet.timestamp = esp_timer_get_time() / 1e3;
 
     memcpy(packet_data, &packet, sizeof(lora_packet_t));
     lora_send_packet(packet_data, sizeof(lora_packet_t));
 
-    // printf("Sent packet at %ld ms: Latitude: %.6f, Longitude: %.6f, GPSAltitude: %ld, Baro Altitude: %f, Baro Velocity: %f, Acceleration: %f, Pyro Arm: %d, Flight State: %d\n", packet.timestamp, packet.latitude, packet.longitude, packet.gps_altitude, packet.barometric_agl, packet.barometric_velocity, packet.acceleration, packet.pyro_arm, packet.flight_state);
+    printf("Sent packet at %ld ms: Latitude: %.6f, Longitude: %.6f, GPSAltitude: %ld, Baro Altitude: %f, Baro Velocity: %f, Acceleration: %f, Pyro Arm: %d, Flight State: %d, Battery Voltage: %f\n", packet.timestamp, packet.latitude, packet.longitude, packet.gps_altitude, packet.barometric_agl, packet.barometric_velocity, packet.acceleration, packet.pyro_arm, packet.flight_state, packet.batt_voltage);
 
     int lost = lora_packet_lost();
     if (lost != 0) {

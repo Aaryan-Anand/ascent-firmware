@@ -51,9 +51,14 @@ void imu_task_init()
     bno055_init(I2C_MASTER_PORT);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    bno_trigger_rst();
+
     bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(CONFIG);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
 void baro_task_init()
@@ -71,12 +76,6 @@ void init_general()
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
     fflush(stdout);
-
-    esp_err_t ret1 = i2c_manager_deinit(I2C_NUM_0);
-    if (ret1 != ESP_OK) {
-        printf("Failed to deinit I2C\n");
-        return;
-    }
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
@@ -483,10 +482,19 @@ void app_main(void) {
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
+    neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
+
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 4; j++) {
-            if (pyro_continuity(j+1)) note(NOTE_E, 8, 300);
-            else note(NOTE_G, 5, 300);
+            if (pyro_continuity(j+1)) {
+                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
+                note(NOTE_E, 8, 300);
+                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
+            } else {
+                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 255,  255) } }, 1);
+                note(NOTE_G, 5, 300);
+                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
+            }
             vTaskDelay(500 / portTICK_PERIOD_MS);
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -495,6 +503,18 @@ void app_main(void) {
 #ifdef LED_PYRO
     pyro_activate(PYRO_CHANNEL_1, 150, 0);
     pyro_activate(PYRO_CHANNEL_2, 150, 0);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+#endif
+
+#ifdef LIVE_VIDEO_PYRO_3
+    pyro_activate(PYRO_CHANNEL_3,0,1);
+    note(NOTE_G, 5, 100);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_A, 3, 50);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_G, 5, 100);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_A, 3, 50);
     vTaskDelay(500 / portTICK_PERIOD_MS);
 #endif
 

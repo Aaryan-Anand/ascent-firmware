@@ -17,6 +17,7 @@ typedef struct {
     float acceleration;
     uint8_t pyro_arm;
     uint8_t flight_state;
+    double batt_voltage;
 } lora_packet_t;
 
 void lora_task_init();
