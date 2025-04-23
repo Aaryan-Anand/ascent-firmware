@@ -49,16 +49,18 @@ static tNeopixelContext neopixel;
 void imu_task_init()
 {
     bno055_init(I2C_MASTER_PORT);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     bno_trigger_rst();
 
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
     bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     bno_setoprmode(CONFIG);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 }
 
 void baro_task_init()
@@ -77,7 +79,13 @@ void init_general()
 
     fflush(stdout);
 
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    esp_err_t ret1 = i2c_manager_deinit(I2C_MASTER_PORT);
+    if (ret1 != ESP_OK) {
+        printf("Failed to deinit I2C\n");
+        return;
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     esp_err_t ret = i2c_manager_init(I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ, I2C_MASTER_PORT);
     if (ret != ESP_OK) {
@@ -115,6 +123,8 @@ void init_everything()
     pyro_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    psu_init_default();
+
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
     note(NOTE_G, 8, 300);
 
@@ -143,6 +153,7 @@ float average_barometric_velocity;
 double acceleration;
 uint8_t pyro_arm = 0;
 uint8_t flight_state;
+double batt_voltage = 99.99;
 
 
 static void flight_on_pad()
@@ -532,6 +543,8 @@ void app_main(void) {
         sum += pyro_continuity(PYRO_CHANNEL_1);
         sum += pyro_continuity(PYRO_CHANNEL_2)*2;
         pyro_arm = sum;
+
+        batt_voltage = psu_read_battery_voltage();
 
         // int64_t s;
         // int64_t d;
