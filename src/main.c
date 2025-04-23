@@ -54,10 +54,10 @@ void app_main(void){
 
 
     while(1){
-        bno_calib(&acc, &gyr, &mag);
+        bno_local(&acc, &gyr, &mag, true);
         printf("Accel: X=%d Y=%d Z=%d \n", acc.x, acc.y, acc.z);
-        //lis331_calib(&high_g_acc);
-        //printf("Accel: X=%2f Y=%2f Z=%2f Net=%2f \n", high_g_acc.x, high_g_acc.y, high_g_acc.z, sqrt(high_g_acc.x*high_g_acc.x + high_g_acc.y*high_g_acc.y + high_g_acc.z*high_g_acc.z));
+        // lis331_local(&high_g_acc, true);
+        // printf("Accel: X=%2f Y=%2f Z=%2f Net=%2f \n", high_g_acc.x, high_g_acc.y, high_g_acc.z, sqrt(high_g_acc.x*high_g_acc.x + high_g_acc.y*high_g_acc.y + high_g_acc.z*high_g_acc.z));
         //bmp_get(&bmp_agl);
         //printf("Baro AGL = %2f \n", bmp_agl);
         vTaskDelay(10);
