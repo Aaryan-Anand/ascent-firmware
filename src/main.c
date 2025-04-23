@@ -219,7 +219,8 @@ static void flight_coasting()
 static void flight_under_drogues()
 {
     if (barometric_agl < MAINS_ALT) {
-        if (deploy_mains()) flight_state = FS_UNDER_MAINS;
+        deploy_mains();
+        flight_state = FS_UNDER_MAINS;
     }
 }
 
