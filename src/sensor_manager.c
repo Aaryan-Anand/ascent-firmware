@@ -8,8 +8,40 @@
 // Add these variable definitions
 imu_raw_3d_t acc, gyr, mag;
 imu_float_3d_t high_g_acc;
+float bmp_agl;
 
-extern volatile bool print_bno_data;
+
+// Correction matrices initialized to identity matrices
+float acc_correction_matrix[3][3] = {
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
+};
+
+float gyr_correction_matrix[3][3] = {
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
+};
+
+float mag_correction_matrix[3][3] = {
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
+};
+
+float high_g_correction_matrix[3][3] = {
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
+};
+
+// Bias vectors initialized to zero
+float acc_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+
 
 void i2c_init(){
     esp_err_t ret1 = i2c_manager_deinit(I2C_NUM_0);
@@ -49,25 +81,6 @@ void bno_flight_init(){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(CONFIG);
     bno_setoprmode(AMG);
-
-    // Create a queue to handle GPIO interrupt events
-    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    
-    // Configure GPIO interrupt
-    gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_NEGEDGE,  // Interrupt on rising edge
-        .pin_bit_mask = (1ULL << PIN_BNO055_INT),  // Select BNO055 interrupt pin
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-    };
-    gpio_config(&io_conf);
-
-    printf("Initial INT pin state: %d\n", gpio_get_level(PIN_BNO055_INT));
-
-    gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(PIN_BNO055_INT, gpio_isr_handler, (void*) PIN_BNO055_INT);
-    xTaskCreate(bno_interrupt_task, "bno_interrupt_task", 2048, NULL, 10, NULL);
 }
 
 void lis331_flight_init(){
@@ -111,27 +124,90 @@ void lis331_get(imu_float_3d_t* acc) {
     }
 }
 
-QueueHandle_t gpio_evt_queue = NULL;
-
-void IRAM_ATTR gpio_isr_handler(void* arg) {
-    uint32_t gpio_num = (uint32_t) arg;
-    xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+void bmp_get(float *bmp_agl){
+    *bmp_agl = bmp390_barometricAGL();
 }
 
-void bno_interrupt_task(void* arg) {
-    uint32_t io_num;
-    while (true) {
-        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            ESP_LOGI("BNO", "Interrupt detected on GPIO %" PRIu32, io_num);
-            
-            // Toggle printing of BNO data
-            print_bno_data = !print_bno_data;
-            
-            // Clear the interrupt by reading the interrupt status
-            bool acc_nm, acc_am, acc_high_g, gyro_drdy, 
-                 gyr_high_rate, gyr_am, mag_drdy, acc_drdy;
-            bno_getinterruptstatus(&acc_nm, &acc_am, &acc_high_g, &gyro_drdy, 
-                                 &gyr_high_rate, &gyr_am, &mag_drdy, &acc_drdy);
-        }
+// Helper function to apply 3x3 matrix multiplication and bias addition
+static void apply_calibration(float* input, float matrix[3][3], float* bias, float* output) {
+    // Matrix multiplication
+    output[0] = matrix[0][0] * input[0] + matrix[0][1] * input[1] + matrix[0][2] * input[2];
+    output[1] = matrix[1][0] * input[0] + matrix[1][1] * input[1] + matrix[1][2] * input[2];
+    output[2] = matrix[2][0] * input[0] + matrix[2][1] * input[1] + matrix[2][2] * input[2];
+
+    // Add bias
+    output[0] += bias[0];
+    output[1] += bias[1];
+    output[2] += bias[2];
+}
+
+esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out) {
+    // Temporary structs for raw readings
+    imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
+    
+    // Get raw sensor data
+    esp_err_t ret = bno_get(&raw_acc, &raw_gyr, &raw_mag);
+    if (ret != ESP_OK) {
+        return ret;
     }
+    
+    // Temporary arrays for floating point calculations
+    float acc_float[3], gyr_float[3], mag_float[3];
+    float acc_cal[3], gyr_cal[3], mag_cal[3];
+
+    // Convert raw readings to float
+    acc_float[0] = (float)raw_acc.x;
+    acc_float[1] = (float)raw_acc.y;
+    acc_float[2] = (float)raw_acc.z;
+
+    gyr_float[0] = (float)raw_gyr.x;
+    gyr_float[1] = (float)raw_gyr.y;
+    gyr_float[2] = (float)raw_gyr.z;
+
+    mag_float[0] = (float)raw_mag.x;
+    mag_float[1] = (float)raw_mag.y;
+    mag_float[2] = (float)raw_mag.z;
+
+    // Apply calibrations
+    apply_calibration(acc_float, acc_correction_matrix, acc_bias_vector, acc_cal);
+    apply_calibration(gyr_float, gyr_correction_matrix, gyr_bias_vector, gyr_cal);
+    apply_calibration(mag_float, mag_correction_matrix, mag_bias_vector, mag_cal);
+
+    // Store calibrated results in output
+    acc_out->x = (int16_t)acc_cal[0];
+    acc_out->y = (int16_t)acc_cal[1];
+    acc_out->z = (int16_t)acc_cal[2];
+
+    gyr_out->x = (int16_t)gyr_cal[0];
+    gyr_out->y = (int16_t)gyr_cal[1];
+    gyr_out->z = (int16_t)gyr_cal[2];
+
+    mag_out->x = (int16_t)mag_cal[0];
+    mag_out->y = (int16_t)mag_cal[1];
+    mag_out->z = (int16_t)mag_cal[2];
+
+    return ESP_OK;
+}
+
+void lis331_calib(imu_float_3d_t* acc_out) {
+    // Temporary struct for raw readings
+    imu_float_3d_t raw_acc;
+    
+    // Get raw sensor data
+    lis331_get(&raw_acc);
+    
+    float acc_float[3], acc_cal[3];
+
+    // Copy raw readings to array
+    acc_float[0] = raw_acc.x;
+    acc_float[1] = raw_acc.y;
+    acc_float[2] = raw_acc.z;
+
+    // Apply calibration
+    apply_calibration(acc_float, high_g_correction_matrix, high_g_bias_vector, acc_cal);
+
+    // Store calibrated results
+    acc_out->x = acc_cal[0];
+    acc_out->y = acc_cal[1];
+    acc_out->z = acc_cal[2];
 }

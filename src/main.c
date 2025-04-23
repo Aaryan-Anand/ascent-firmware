@@ -20,7 +20,6 @@
 #include "driver_pyro.h"
 #include "driver_psu.h"
 #include "driver_w25qxx.h"
-#include "driver_bno055.h"
 
 #include "esp_wifi.h"
 #include "esp_cpu.h"
@@ -47,29 +46,20 @@
 #include "flight_config.h"
 #include "lora_task.h"
 
-// Add near the top with other includes and definitions
-volatile bool print_bno_data = false;
-
 void app_main(void){
     i2c_init();
     bmp_flight_init();
     bno_flight_init();
     lis331_flight_init();
 
-    while(1){
-        // Read interrupt status
-        bool acc_nm, acc_am, acc_high_g, gyro_drdy, 
-             gyr_high_rate, gyr_am, mag_drdy, acc_drdy;
-        bno_getinterruptstatus(&acc_nm, &acc_am, &acc_high_g, &gyro_drdy, 
-                             &gyr_high_rate, &gyr_am, &mag_drdy, &acc_drdy);
 
-        bno_get(&acc, &gyr, &mag);
-        printf("BNO Accel: X=%d Y=%d Z=%d | AM_Int=%d | HG_Int=%d | Print=%d\n", 
-               acc.x, acc.y, acc.z, 
-               acc_am, // Show if high-G interrupt is triggered
-               acc_high_g,
-               print_bno_data);
-        
-        vTaskDelay(10); // Slower update rate for readable output
+    while(1){
+        bno_calib(&acc, &gyr, &mag);
+        printf("Accel: X=%d Y=%d Z=%d \n", acc.x, acc.y, acc.z);
+        //lis331_calib(&high_g_acc);
+        //printf("Accel: X=%2f Y=%2f Z=%2f Net=%2f \n", high_g_acc.x, high_g_acc.y, high_g_acc.z, sqrt(high_g_acc.x*high_g_acc.x + high_g_acc.y*high_g_acc.y + high_g_acc.z*high_g_acc.z));
+        //bmp_get(&bmp_agl);
+        //printf("Baro AGL = %2f \n", bmp_agl);
+        vTaskDelay(10);
     }
 }

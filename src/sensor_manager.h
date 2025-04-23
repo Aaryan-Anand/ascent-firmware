@@ -60,23 +60,15 @@ esp_err_t bno_get(imu_raw_3d_t* acc, imu_raw_3d_t* gyr, imu_raw_3d_t* mag);
  */
 void lis331_get(imu_float_3d_t* acc);
 
-// === Optional: ISR Setup for BNO055 Interrupt Handling ===
-
 /**
- * @brief GPIO interrupt service routine for BNO055 interrupt pin.
+ * @brief Read BMP
  * 
- * @param arg Pointer passed from gpio_isr_handler_add (GPIO number as void* cast)
+ * @param acc Pointer to store agl in m
  */
-void gpio_isr_handler(void* arg);
+void bmp_get(float* bmp_agl);
 
-/**
- * @brief Task that waits on GPIO interrupt queue and handles BNO055 interrupt events.
- * 
- * @param arg FreeRTOS task parameter (unused)
- */
-void bno_interrupt_task(void* arg);
-
-// Add near the top with other declarations
-extern QueueHandle_t gpio_evt_queue;
+// Add these declarations to sensor_manager.h
+esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out);
+void lis331_calib(imu_float_3d_t* acc_out);
 
 #endif // SENSOR_MANAGER_H
