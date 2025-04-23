@@ -45,3 +45,8 @@ static tNeopixelContext neopixel;
 
 #include "flight_config.h"
 #include "lora_task.h"
+
+
+void app_main(void){
+    
+}
