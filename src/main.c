@@ -52,14 +52,34 @@ void app_main(void){
     bno_flight_init();
     lis331_flight_init();
 
+    int64_t start_time, bno_time, lis_time, bmp_time;
 
     while(1){
+        // Measure BNO055 time
+        start_time = esp_timer_get_time();
         bno_local(&acc, &gyr, &mag, true);
-        printf("Accel: X=%d Y=%d Z=%d \n", acc.x, acc.y, acc.z);
-        // lis331_local(&high_g_acc, true);
-        // printf("Accel: X=%2f Y=%2f Z=%2f Net=%2f \n", high_g_acc.x, high_g_acc.y, high_g_acc.z, sqrt(high_g_acc.x*high_g_acc.x + high_g_acc.y*high_g_acc.y + high_g_acc.z*high_g_acc.z));
-        //bmp_get(&bmp_agl);
-        //printf("Baro AGL = %2f \n", bmp_agl);
-        vTaskDelay(10);
+        bno_time = esp_timer_get_time() - start_time;
+
+        // Measure LIS331 time
+        start_time = esp_timer_get_time();
+        lis331_local(&high_g_acc, true);
+        lis_time = esp_timer_get_time() - start_time;
+
+        // Measure BMP time
+        start_time = esp_timer_get_time();
+        bmp_calib(&bmp_agl);
+        bmp_time = esp_timer_get_time() - start_time;
+
+        // Print all timing results and sensor data
+        printf("Timing [µs] - BNO: %lld, LIS: %lld, BMP: %lld | "
+               "Accel: X=%d Y=%d Z=%d | "
+               "HighG: X=%.2f Y=%.2f Z=%.2f | "
+               "Baro: %.2f m\n",
+               bno_time, lis_time, bmp_time,
+               acc.x, acc.y, acc.z,
+               high_g_acc.x, high_g_acc.y, high_g_acc.z,
+               bmp_agl);
+
+        //vTaskDelay(10);
     }
 }

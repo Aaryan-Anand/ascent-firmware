@@ -10,6 +10,9 @@ imu_raw_3d_t acc, gyr, mag;
 imu_float_3d_t high_g_acc;
 float bmp_agl;
 
+// Add these definitions near the top with other calibration variables
+float bmp_scaling = 1.0f;  // Default to no scaling
+float bmp_bias = 0.0f;     // Default to no bias
 
 // Correction matrices initialized to identity matrices
 float acc_correction_matrix[3][3] = {
@@ -304,4 +307,14 @@ void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped) {
     acc_out->x = acc_rot[0];
     acc_out->y = acc_rot[1];
     acc_out->z = acc_rot[2];
+}
+
+// Add this new function
+void bmp_calib(float* agl_out) {
+    // Get raw sensor data
+    float raw_agl;
+    bmp_get(&raw_agl);
+    
+    // Apply calibration: scaling first, then bias
+    *agl_out = raw_agl * bmp_scaling + bmp_bias;
 }

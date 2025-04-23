@@ -32,4 +32,8 @@ extern float gyr_bias_vector[3];
 extern float mag_bias_vector[3];
 extern float high_g_bias_vector[3];
 
+// Add these declarations to globals.h
+extern float bmp_scaling;
+extern float bmp_bias;
+
 #endif
