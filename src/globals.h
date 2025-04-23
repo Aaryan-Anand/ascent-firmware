@@ -1,6 +1,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include "sensor_manager.h"
 #include "stdint.h"
 
 extern uint32_t timestamp;
@@ -14,5 +15,10 @@ extern double acceleration;
 extern uint8_t pyro_arm;
 extern uint8_t flight_state;
 extern double batt_voltage;
+
+extern imu_raw_3d_t acc, gyr, mag;
+extern imu_float_3d_t high_g_acc;
+
+extern volatile bool print_bno_data;
 
 #endif
