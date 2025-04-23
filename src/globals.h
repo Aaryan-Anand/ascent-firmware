@@ -4,6 +4,11 @@
 #include "sensor_manager.h"
 #include "stdint.h"
 
+// Task counters
+extern volatile uint32_t sensor_task_counter;
+extern volatile uint32_t fsm_task_counter;
+
+// Global variables
 extern uint32_t timestamp;
 extern float latitude;
 extern float longitude;
@@ -14,8 +19,10 @@ extern float average_barometric_velocity;
 extern double acceleration;
 extern uint8_t pyro_arm;
 extern uint8_t flight_state;
+extern uint8_t flight_event;
 extern double batt_voltage;
 
+// Sensor data
 extern imu_raw_3d_t acc, gyr, mag;
 extern imu_float_3d_t high_g_acc;
 extern float bmp_agl;
