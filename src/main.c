@@ -177,6 +177,8 @@ static bool deploy_drogues()
         }
     }
 
+
+
 #ifdef LED_PYRO
     return true;
 #else
@@ -208,8 +210,8 @@ static bool deploy_mains()
 static void flight_coasting()
 {
     if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0) {
-        if (deploy_drogues()) flight_state = FS_UNDER_DROGUES;
-        else flight_state = FS_FREEFALL;
+        deploy_drogues();
+        flight_state = FS_UNDER_DROGUES;
         return;
     }
 }
@@ -223,7 +225,7 @@ static void flight_under_drogues()
 
 static void flight_under_mains()
 {
-    if (fabs(average_barometric_velocity) < 2) {
+    if (fabs(average_barometric_velocity) < 5) {
         flight_state = FS_LANDED;
         return;
     }
@@ -457,6 +459,18 @@ void app_main(void) {
 #ifdef LED_PYRO
     pyro_activate(PYRO_CHANNEL_1, 150, 0);
     pyro_activate(PYRO_CHANNEL_2, 150, 0);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+#endif
+
+#ifdef LIVE_VIDEO_PYRO_3
+    pyro_activate(PYRO_CHANNEL_3,0,1);
+    note(NOTE_G, 5, 100);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_A, 3, 50);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_G, 5, 100);
+    vTaskDelay(60 / portTICK_PERIOD_MS);
+    note(NOTE_A, 3, 50);
     vTaskDelay(500 / portTICK_PERIOD_MS);
 #endif
 
