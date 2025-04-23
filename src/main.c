@@ -48,15 +48,6 @@
 
 #include "flightState_manager.h"
 
-// Add these global variables for frequency monitoring
-volatile uint32_t sensor_task_counter = 0;
-volatile uint32_t fsm_task_counter = 0;
-
-// Add counters for each sensor task
-volatile uint32_t bno_task_counter = 0;
-volatile uint32_t lis_task_counter = 0;
-volatile uint32_t bmp_task_counter = 0;
-
 // Define all other global variables
 uint32_t timestamp;
 float latitude;
@@ -74,38 +65,8 @@ double batt_voltage;
 // Change mutex to binary semaphore
 SemaphoreHandle_t i2c_semaphore;
 
-// Add a counter for round-robin scheduling
-static volatile uint8_t i2c_turn = 0;
 
 // Add a timer task to calculate and print frequencies
-void monitor_task(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(100); // Sample every 100ms
-    
-    uint32_t last_bno_count = 0;
-    uint32_t last_lis_count = 0;
-    uint32_t last_bmp_count = 0;
-    uint32_t last_fsm_count = 0;
-
-    while(1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        
-        // Calculate frequencies over 100ms period
-        uint32_t bno_freq = (bno_task_counter - last_bno_count) * 10;
-        uint32_t lis_freq = (lis_task_counter - last_lis_count) * 10;
-        uint32_t bmp_freq = (bmp_task_counter - last_bmp_count) * 10;
-        uint32_t fsm_freq = (fsm_task_counter - last_fsm_count) * 10;
-        
-        // Store current counts for next iteration
-        last_bno_count = bno_task_counter;
-        last_lis_count = lis_task_counter;
-        last_bmp_count = bmp_task_counter;
-        last_fsm_count = fsm_task_counter;
-
-        printf("Frequencies - BNO: %lu Hz, LIS: %lu Hz, BMP: %lu Hz, FSM: %lu Hz\n", 
-               bno_freq, lis_freq, bmp_freq, fsm_freq);
-    }
-}
 
 void init_sensors(void) {
     i2c_init();
@@ -119,110 +80,32 @@ void init_sensors(void) {
 }
 
 void bno_task(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = 4; // 250Hz
-    uint32_t missed_deadlines = 0;
-    uint32_t semaphore_timeouts = 0;
-    
     while(1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        uint64_t start = esp_timer_get_time();
-        
-        // Wait for our turn (1)
-        while(i2c_turn != 1) {
-            vTaskDelay(1);
-        }
-        
+    vTaskDelay(10 / portTICK_PERIOD_MS);
         if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(2)) == pdTRUE) {
             bno_local(&acc, &gyr, &mag, true);
             xSemaphoreGive(i2c_semaphore);
-            bno_task_counter++;
-            
-            uint64_t end = esp_timer_get_time();
-            if ((end - start) > 4000) {
-                missed_deadlines++;
-            }
-            
-            // Pass to next sensor
-            i2c_turn = 2;
-            
-            if (bno_task_counter % 250 == 0) {
-                printf("BNO: time=%llu us, missed=%lu, timeouts=%lu\n", 
-                       end - start, missed_deadlines, semaphore_timeouts);
-            }
         }
     }
 }
 
 void lis_task(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = 2; // 500Hz
-    uint32_t missed_deadlines = 0;
-    uint32_t semaphore_timeouts = 0;
-    
     while(1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        uint64_t start = esp_timer_get_time();
-        
-        // Wait for our turn (0)
-        while(i2c_turn != 0) {
-            vTaskDelay(1);
-        }
-        
+        vTaskDelay(10 / portTICK_PERIOD_MS);
         if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(1)) == pdTRUE) {
             lis331_local(&high_g_acc, true);
             xSemaphoreGive(i2c_semaphore);
-            lis_task_counter++;
-            
-            uint64_t end = esp_timer_get_time();
-            if ((end - start) > 2000) {
-                missed_deadlines++;
-            }
-            
-            // Pass to next sensor
-            i2c_turn = 1;
-            
-            if (lis_task_counter % 500 == 0) {
-                printf("LIS: time=%llu us, missed=%lu, timeouts=%lu\n", 
-                       end - start, missed_deadlines, semaphore_timeouts);
-            }
         }
     }
 }
 
 void bmp_task(void* pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = 10; // 100Hz
-    uint32_t missed_deadlines = 0;
-    uint32_t semaphore_timeouts = 0;
-    
     while(1) {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        uint64_t start = esp_timer_get_time();
-        
-        // Wait for our turn (2)
-        while(i2c_turn != 2) {
-            vTaskDelay(1);
-        }
-        
+        vTaskDelay(10 / portTICK_PERIOD_MS);
         if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
             bmp_calib(&barometric_agl);
             baro_task();
             xSemaphoreGive(i2c_semaphore);
-            bmp_task_counter++;
-            
-            uint64_t end = esp_timer_get_time();
-            if ((end - start) > 10000) {
-                missed_deadlines++;
-            }
-            
-            // Pass back to first sensor
-            i2c_turn = 0;
-            
-            if (bmp_task_counter % 100 == 0) {
-                printf("BMP: time=%llu us, missed=%lu, timeouts=%lu\n", 
-                       end - start, missed_deadlines, semaphore_timeouts);
-            }
         }
     }
 }
@@ -251,54 +134,45 @@ void app_main(void) {
         "lis_task",
         8192,  // Increased stack size
         NULL,
-        configMAX_PRIORITIES - 1,
+        1,
         NULL,
         1
     );
 
-    vTaskDelay(pdMS_TO_TICKS(1));
+    vTaskDelay(pdMS_TO_TICKS(3));
 
     xTaskCreatePinnedToCore(
         bno_task,          // Second fastest
         "bno_task",
         8192,
         NULL,
-        configMAX_PRIORITIES - 2,
+        1,
         NULL,
         1
     );
 
-    vTaskDelay(pdMS_TO_TICKS(1));
+    vTaskDelay(pdMS_TO_TICKS(3));
 
     xTaskCreatePinnedToCore(
         bmp_task,          // Slowest sensor
         "bmp_task",
         8192,
         NULL,
-        configMAX_PRIORITIES - 3,
+        1,
         NULL,
         1
     );
+
+    vTaskDelay(pdMS_TO_TICKS(2));
 
     xTaskCreatePinnedToCore(
         flight_state_manager,
         "FSM_task",
         8192,
         NULL,
-        configMAX_PRIORITIES - 4,  // Lowest priority of core 1 tasks
+        5,  // Lowest priority of core 1 tasks
         NULL,
         1
-    );
-
-    // Monitor task on core 0
-    xTaskCreatePinnedToCore(
-        monitor_task,
-        "monitor_task",
-        4096,
-        NULL,
-        1,
-        NULL,
-        0
     );
 }
 
