@@ -18,7 +18,18 @@ extern double batt_voltage;
 
 extern imu_raw_3d_t acc, gyr, mag;
 extern imu_float_3d_t high_g_acc;
+extern float bmp_agl;
 
-extern volatile bool print_bno_data;
+// Correction matrices (3x3)
+extern float acc_correction_matrix[3][3];
+extern float gyr_correction_matrix[3][3];
+extern float mag_correction_matrix[3][3];
+extern float high_g_correction_matrix[3][3];
+
+// Bias vectors (3x1)
+extern float acc_bias_vector[3];
+extern float gyr_bias_vector[3];
+extern float mag_bias_vector[3];
+extern float high_g_bias_vector[3];
 
 #endif
