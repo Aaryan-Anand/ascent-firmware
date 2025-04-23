@@ -42,6 +42,26 @@ float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 
+// Add this constant for the rotation calculations
+static const float SQRT2_2 = 0.70710678118f; // sqrt(2)/2 = cos(45°) = sin(45°)
+
+// Helper function to rotate a vector -45 degrees around Z axis
+static void rotate_z_45(float* input, float* output) {
+    float x = input[0];
+    float y = input[1];
+    
+    // Rotation matrix multiplication for Z axis (-45 degrees)
+    output[0] = SQRT2_2 * x + SQRT2_2 * y;   // x' = cos(-45°)x - sin(-45°)y
+    output[1] = -SQRT2_2 * x + SQRT2_2 * y;  // y' = sin(-45°)x + cos(-45°)y
+    output[2] = input[2];                     // z' = z (unchanged)
+}
+
+// Helper function to flip X axis if needed
+static void flip_x_if_needed(float* vec, bool flip) {
+    if (flip) {
+        vec[0] = -vec[0];  // Negate X component
+    }
+}
 
 void i2c_init(){
     esp_err_t ret1 = i2c_manager_deinit(I2C_NUM_0);
@@ -210,4 +230,78 @@ void lis331_calib(imu_float_3d_t* acc_out) {
     acc_out->x = acc_cal[0];
     acc_out->y = acc_cal[1];
     acc_out->z = acc_cal[2];
+}
+
+esp_err_t bno_local(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out, bool local_up_flipped) {
+    // First get calibrated readings
+    esp_err_t ret = bno_calib(acc_out, gyr_out, mag_out);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    // Temporary arrays for rotation calculations
+    float acc_cal[3], gyr_cal[3], mag_cal[3];
+    float acc_rot[3], gyr_rot[3], mag_rot[3];
+
+    // Convert calibrated readings to float for rotation
+    acc_cal[0] = (float)acc_out->x;
+    acc_cal[1] = (float)acc_out->y;
+    acc_cal[2] = (float)acc_out->z;
+
+    gyr_cal[0] = (float)gyr_out->x;
+    gyr_cal[1] = (float)gyr_out->y;
+    gyr_cal[2] = (float)gyr_out->z;
+
+    mag_cal[0] = (float)mag_out->x;
+    mag_cal[1] = (float)mag_out->y;
+    mag_cal[2] = (float)mag_out->z;
+
+    // Apply -45° rotation
+    rotate_z_45(acc_cal, acc_rot);
+    rotate_z_45(gyr_cal, gyr_rot);
+    rotate_z_45(mag_cal, mag_rot);
+
+    // Flip X axis if needed
+    flip_x_if_needed(acc_rot, local_up_flipped);
+    flip_x_if_needed(gyr_rot, local_up_flipped);
+    flip_x_if_needed(mag_rot, local_up_flipped);
+
+    // Store rotated results
+    acc_out->x = (int16_t)acc_rot[0];
+    acc_out->y = (int16_t)acc_rot[1];
+    acc_out->z = (int16_t)acc_rot[2];
+
+    gyr_out->x = (int16_t)gyr_rot[0];
+    gyr_out->y = (int16_t)gyr_rot[1];
+    gyr_out->z = (int16_t)gyr_rot[2];
+
+    mag_out->x = (int16_t)mag_rot[0];
+    mag_out->y = (int16_t)mag_rot[1];
+    mag_out->z = (int16_t)mag_rot[2];
+
+    return ESP_OK;
+}
+
+void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped) {
+    // First get calibrated readings
+    lis331_calib(acc_out);
+
+    // Temporary arrays for rotation calculations
+    float acc_cal[3], acc_rot[3];
+
+    // Copy calibrated readings to array
+    acc_cal[0] = acc_out->x;
+    acc_cal[1] = acc_out->y;
+    acc_cal[2] = acc_out->z;
+
+    // Apply -45° rotation
+    rotate_z_45(acc_cal, acc_rot);
+
+    // Flip X axis if needed
+    flip_x_if_needed(acc_rot, local_up_flipped);
+
+    // Store rotated results
+    acc_out->x = acc_rot[0];
+    acc_out->y = acc_rot[1];
+    acc_out->z = acc_rot[2];
 }

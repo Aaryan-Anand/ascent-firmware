@@ -71,4 +71,8 @@ void bmp_get(float* bmp_agl);
 esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out);
 void lis331_calib(imu_float_3d_t* acc_out);
 
+// Add these declarations
+esp_err_t bno_local(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out, bool local_up_flipped);
+void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped);
+
 #endif // SENSOR_MANAGER_H
