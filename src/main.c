@@ -131,6 +131,19 @@ enum FlightState
     FS_FREEFALL,
 };
 
+const char* stupid(enum FlightState state) {
+    switch (state) {
+        case FS_ON_PAD: return "ON PAD";
+        case FS_POWERED_FLIGHT: return "POWERED FLIGHT";
+        case FS_COASTING: return "COAST";
+        case FS_UNDER_DROGUES: return "UNDER DROGUES";
+        case FS_UNDER_MAINS: return "UNDER MAINS";
+        case FS_LANDED: return "LANDED";
+        case FS_FREEFALL: return "FREEFALL";
+        default: return "UNKNOWN";
+    }
+}
+
 uint32_t timestamp;
 float latitude;
 float longitude;
@@ -147,7 +160,7 @@ double batt_voltage = 99.99;
 static void flight_on_pad()
 {
     // TODO: also check for accelerometer spike
-    printf("Acc X = %d", acc.x);
+    // printf("Acc X = %d", acc.x);
     if (acc.x > 3000) {
         flight_state = FS_POWERED_FLIGHT;
         return;
@@ -156,7 +169,7 @@ static void flight_on_pad()
 
 static void flight_powered_flight()
 {
-    printf("Acc X = %d", acc.x);
+    // printf("Acc X = %d", acc.x);
     if (acc.x < 0) {
         flight_state = FS_COASTING;
         return;
@@ -325,7 +338,20 @@ typedef struct {
 } flash_packet;
 flash_packet fp;
 
-uint32_t addr = 0;
+uint32_t addr = 4096;
+
+void save_addr() {
+    uint8_t res = w25qxx_sector_erase(0);
+    res = w25qxx_write(0, &addr, 4);
+    printf("Saving %ld rs: %d\n", addr, res);
+    uint32_t read;
+    res = w25qxx_read(0, &read, 4);
+    printf("Read back %ld res: %d\n\n", read, res);
+}
+
+void recall_addr() {
+    w25qxx_read(0, &addr, 4);
+}
 
 // void app_main_loop(void* params) {
 void app_main(void) {
@@ -357,87 +383,102 @@ void app_main(void) {
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
     uint8_t res;
-    addr = 0;
+    addr = 4096;
 
     // TaskHandle_t megolavania_task_handle;
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 1);
 
-//     res = w25qxx_init();
-//     if (res) fail_state(FAIL_FLASH_INIT);
+    res = w25qxx_init();
+    if (res) fail_state(FAIL_FLASH_INIT);
 
-//     if (pyro_continuity(PYRO_CHANNEL_1) && pyro_continuity(PYRO_CHANNEL_2)) {
-//         printf("DOING CHIP ERASE\n");
-//         // res = w25qxx_chip_erase();
-//         // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-//         for (int i = 0; i < 500; i++) {
-//             res = w25qxx_sector_erase(i*4096);
-//             if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-//         }
-//     } else {
-//         addr = 0;
-//         printf("DUMPING DATA\n");
-//         vTaskDelay(5000 / portTICK_PERIOD_MS);
-//         while (1) {
-//             w25qxx_read(addr, &fp, sizeof(flash_packet));
-//             addr += sizeof(flash_packet);
-//             /*
-//     int16_t acc_x, acc_y, acc_z;
-//     int16_t mag_x, mag_y, mag_z;
-//     int16_t gyr_x, gyr_y, gyr_z;
-//     float x_accel, y_accel, z_accel;
-//     int64_t timestamp;
-//     float latitude;
-//     float longitude;
-//     float barometric_agl;
-//     uint32_t gps_altitude;
-//     float barometric_velocity;
-//     float average_barometric_velocity;
-//     double acceleration;
-//     uint8_t pyro_arm = 0;
-//     uint8_t flight_state;
+    if (pyro_continuity(PYRO_CHANNEL_1) && pyro_continuity(PYRO_CHANNEL_2)) {
+        printf("DOING CHIP ERASE\n");
+        recall_addr();
+        // TODO: remove this stupid check
+        if (addr == 0xFFFFFFFF || addr == 0) addr = 100*4096;
+        uint32_t n = ceil(addr / 4096)+2;
+        printf("Addr: %ld, erasing: %ld\n", addr, n);
+        addr = 4096;
+        // res = w25qxx_chip_erase();
+        // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
 
-//         // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
-//     */
-//    printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %"PRId64", %f, %f, %f, %lu, %f, %f, %f, %d, %d\n",
-//                 fp.acc_x,
-//                 fp.acc_y,
-//                 fp.acc_z,
-//                 fp.mag_x,
-//                 fp.mag_y,
-//                 fp.mag_z,
-//                 fp.gyr_x,
-//                 fp.gyr_y,
-//                 fp.gyr_z,
-//                 fp.x_accel,
-//                 fp.y_accel,
-//                 fp.z_accel,
-//                 fp.timestamp,
-//                 fp.latitude,
-//                 fp.longitude,
-//                 fp.barometric_agl,
-//                 fp.gps_altitude,
-//                 fp.barometric_velocity,
-//                 fp.average_barometric_velocity,
-//                 fp.acceleration,
-//                 fp.pyro_arm,
-//                 fp.flight_state);
-//             bool all = true;
-//             char* buf = (char*) &fp;
-//             for (int i = 0; i < sizeof(flash_packet); i++) {
-//                 if (buf[i] != 0xFF) all=false;
-//             }
-//             if (all) break;
-//         }
+        for (int i = 0; i < n; i++) {
+            res = w25qxx_sector_erase(i*4096);
+            if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
+        }
+    } else {
+        printf("DUMPING DATA\n");
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        recall_addr();
+        // TODO: remove this stupid check
+        // if (addr == 0xFFFFFFFF) addr = 100*4096;
+        uint32_t n = ceil(addr / 4096)+2;
+        printf("Addr: %ld, used: %ld\n", addr, n);
+        addr = 4096;
+        while (1) {
+            w25qxx_read(addr, &fp, sizeof(flash_packet));
+            addr += sizeof(flash_packet);
 
-//         while (1) {
-//             neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
-//             vTaskDelay(500/portTICK_PERIOD_MS);
-//             neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
-//             vTaskDelay(500/portTICK_PERIOD_MS);
+            bool all = true;
+            char* buf = (char*) &fp;
+            for (int i = 0; i < sizeof(flash_packet); i++) {
+                if (buf[i] != 0xFF) all=false;
+            }
+            if (all) break;
+            /*
+    int16_t acc_x, acc_y, acc_z;
+    int16_t mag_x, mag_y, mag_z;
+    int16_t gyr_x, gyr_y, gyr_z;
+    float x_accel, y_accel, z_accel;
+    int64_t timestamp;
+    float latitude;
+    float longitude;
+    float barometric_agl;
+    uint32_t gps_altitude;
+    float barometric_velocity;
+    float average_barometric_velocity;
+    double acceleration;
+    uint8_t pyro_arm = 0;
+    uint8_t flight_state;
 
-//             vTaskDelay(1000/portTICK_PERIOD_MS);
-//         }
-//     }
+        // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
+    */
+   printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %"PRId64", %f, %f, %f, %lu, %f, %f, %f, %d, %d\n",
+                fp.acc_x,
+                fp.acc_y,
+                fp.acc_z,
+                fp.mag_x,
+                fp.mag_y,
+                fp.mag_z,
+                fp.gyr_x,
+                fp.gyr_y,
+                fp.gyr_z,
+                fp.x_accel,
+                fp.y_accel,
+                fp.z_accel,
+                fp.timestamp,
+                fp.latitude,
+                fp.longitude,
+                fp.barometric_agl,
+                fp.gps_altitude,
+                fp.barometric_velocity,
+                fp.average_barometric_velocity,
+                fp.acceleration,
+                fp.pyro_arm,
+                fp.flight_state);
+        }
+
+        save_addr();
+
+        while (1) {
+            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
+            vTaskDelay(500/portTICK_PERIOD_MS);
+            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
+            vTaskDelay(500/portTICK_PERIOD_MS);
+
+            vTaskDelay(1000/portTICK_PERIOD_MS);
+        }
+    }
 
     // vTaskDelete(megolavania_task_handle);
 
@@ -448,14 +489,14 @@ void app_main(void) {
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
-    for (int i = 0; i < 3; i++) {
+    // for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 4; j++) {
             if (pyro_continuity(j+1)) note(NOTE_E, 8, 300);
             else note(NOTE_G, 5, 300);
             vTaskDelay(500 / portTICK_PERIOD_MS);
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
-    }
+    // }
 
 #ifdef LED_PYRO
     pyro_activate(PYRO_CHANNEL_1, 150, 0);
@@ -478,6 +519,9 @@ void app_main(void) {
     flight_state = FS_ON_PAD;
 
     uint32_t cycle = 0;
+
+    save_addr();
+    uint32_t sub_addr = 0;
     
     while (1) {
         int64_t start_time = esp_timer_get_time();
@@ -564,48 +608,45 @@ void app_main(void) {
     uint8_t flight_state;
             h3lis331dl_read_accel(&data.x_accel, &data.y_accel, &data.z_accel);u*/
         if (cycle % (uint32_t)(MAIN_LOOP_FQ/15) == 0) {
-            int16_t acc_x, acc_y, acc_z;
-            int16_t mag_x, mag_y, mag_z;
-            int16_t gyr_x, gyr_y, gyr_z;
-            bno_readamg(&acc_x, &acc_y, &acc_z,
-                        &mag_x, &mag_y, &mag_z,
-                        &gyr_x, &gyr_y, &gyr_z);
             baro_task();
             lis331_local(&high_g_acc, true);
             bno_local(&acc, &gyr, &mag, true);
-            // double x_accel, y_accel, z_accel;
-            // h3lis331dl_read_accel(&x_accel, &y_accel, &z_accel);
             lora_task();
-            acceleration = sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z);
+            acceleration = acc.x;
 
-            // if (addr < (uint32_t)6e6) {
-            // // if (false) {
-            //     fp.acc_x = acc_x;
-            //     fp.acc_y = acc_y;
-            //     fp.acc_z = acc_z;
-            //     fp.mag_x = mag_x;
-            //     fp.mag_y = mag_y;
-            //     fp.mag_z = mag_z;
-            //     fp.gyr_x = gyr_x;
-            //     fp.gyr_y = gyr_y;
-            //     fp.gyr_z = gyr_z;
-            //     fp.x_accel = x_accel;
-            //     fp.y_accel = y_accel;
-            //     fp.z_accel = z_accel;
-            //     fp.timestamp = start_time;
-            //     fp.latitude = latitude;
-            //     fp.longitude = longitude;
-            //     fp.barometric_agl = barometric_agl;
-            //     fp.gps_altitude = gps_altitude;
-            //     fp.barometric_velocity = barometric_velocity;
-            //     fp.average_barometric_velocity = average_barometric_velocity;
-            //     fp.acceleration = acceleration;
-            //     fp.pyro_arm = pyro_arm;
-            //     fp.flight_state = flight_state;
+            if (addr < (uint32_t)6e6 && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
+            // if (false) {
+                fp.acc_x = acc.x;
+                fp.acc_y = acc.y;
+                fp.acc_z = acc.z;
+                fp.mag_x = mag.x;
+                fp.mag_y = mag.y;
+                fp.mag_z = mag.z;
+                fp.gyr_x = gyr.x;
+                fp.gyr_y = gyr.y;
+                fp.gyr_z = gyr.z;
+                fp.x_accel = high_g_acc.x;
+                fp.y_accel = high_g_acc.y;
+                fp.z_accel = high_g_acc.z;
+                fp.timestamp = start_time;
+                fp.latitude = latitude;
+                fp.longitude = longitude;
+                fp.barometric_agl = barometric_agl;
+                fp.gps_altitude = gps_altitude;
+                fp.barometric_velocity = barometric_velocity;
+                fp.average_barometric_velocity = average_barometric_velocity;
+                fp.acceleration = acceleration;
+                fp.pyro_arm = pyro_arm;
+                fp.flight_state = flight_state;
 
-            //     w25qxx_write(addr, &fp, sizeof(flash_packet));
-            //     addr += sizeof(flash_packet);
-            // }
+                w25qxx_write(addr, &fp, sizeof(flash_packet));
+                addr += sizeof(flash_packet);
+                sub_addr += sizeof(flash_packet);
+                if (sub_addr >= 4096) {
+                    save_addr();
+                    sub_addr = sub_addr-4096;
+                }
+            }
         }
 
 
@@ -621,6 +662,7 @@ void app_main(void) {
             case FS_LANDED: break;
             default: assert(0); break;
         }
+        printf("%s %d\n", stupid(flight_state), acc.x);
         // d = esp_timer_get_time() - s;
         // printf("FSM: %" PRId64 "us\n\n", d);
 
