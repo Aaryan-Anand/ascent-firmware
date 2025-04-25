@@ -30,10 +30,12 @@
 
 #include "spi_manager.h"
 
-#include "megolavania.h"
+#include "beep.h"
 
 #include "driver/gpio.h"
 #include "neopixel.h"
+
+#include "sensor_manager.h"
 
 #define PIXEL_COUNT  1
 #define NEOPIXEL_PIN GPIO_NUM_21
@@ -46,21 +48,19 @@ static tNeopixelContext neopixel;
 #include "flight_config.h"
 #include "lora_task.h"
 
+extern imu_raw_3d_t acc, gyr, mag;
+extern imu_float_3d_t high_g_acc;
+
+extern void baro_task(void);  // Add this near the top with other declarations
+
 void imu_task_init()
 {
     bno055_init(I2C_MASTER_PORT);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    bno_trigger_rst();
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
     bno_setoprmode(CONFIG);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
 }
 
 void baro_task_init()
@@ -79,20 +79,6 @@ void init_general()
 
     fflush(stdout);
 
-    esp_err_t ret1 = i2c_manager_deinit(I2C_MASTER_PORT);
-    if (ret1 != ESP_OK) {
-        printf("Failed to deinit I2C\n");
-        return;
-    }
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    esp_err_t ret = i2c_manager_init(I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ, I2C_MASTER_PORT);
-    if (ret != ESP_OK) {
-        printf("Failed to initialize I2C\n");
-        return;
-    }
-
 	// ret = spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
     // if (ret != ESP_OK) {
     //     printf("Failed to initialize SPI\n");
@@ -103,21 +89,23 @@ void init_general()
 void init_everything()
 {
     init_general();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    
+    i2c_init();
+    vTaskDelay(pdMS_TO_TICKS(50));
+    bmp_flight_init();
+    vTaskDelay(pdMS_TO_TICKS(10));
+    bno_flight_init();
+    vTaskDelay(pdMS_TO_TICKS(10));
+    lis331_flight_init();
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     gps_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-
-    baro_task_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_task_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-
-    imu_task_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     pyro_init();
@@ -159,7 +147,8 @@ double batt_voltage = 99.99;
 static void flight_on_pad()
 {
     // TODO: also check for accelerometer spike
-    if (barometric_agl > POWERED_ALT) {
+    printf("Acc X = %d", acc.x);
+    if (acc.x > 3000) {
         flight_state = FS_POWERED_FLIGHT;
         return;
     }
@@ -167,9 +156,11 @@ static void flight_on_pad()
 
 static void flight_powered_flight()
 {
-    // TODO: use accelerometer to detect motor burn out and switch to coasting state
-    // for now just instantly switch to the coasting state
-    flight_state = FS_COASTING;
+    printf("Acc X = %d", acc.x);
+    if (acc.x < 0) {
+        flight_state = FS_COASTING;
+        return;
+    };
 }
 
 static bool deploy_drogues()
@@ -185,6 +176,8 @@ static bool deploy_drogues()
             if (!cont) return true;
         }
     }
+
+
 
 #ifdef LED_PYRO
     return true;
@@ -217,8 +210,8 @@ static bool deploy_mains()
 static void flight_coasting()
 {
     if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0) {
-        if (deploy_drogues()) flight_state = FS_UNDER_DROGUES;
-        else flight_state = FS_FREEFALL;
+        deploy_drogues();
+        flight_state = FS_UNDER_DROGUES;
         return;
     }
 }
@@ -226,13 +219,14 @@ static void flight_coasting()
 static void flight_under_drogues()
 {
     if (barometric_agl < MAINS_ALT) {
-        if (deploy_mains()) flight_state = FS_UNDER_MAINS;
+        deploy_mains();
+        flight_state = FS_UNDER_MAINS;
     }
 }
 
 static void flight_under_mains()
 {
-    if (fabs(average_barometric_velocity) < 2) {
+    if (fabs(average_barometric_velocity) < 5) {
         flight_state = FS_LANDED;
         return;
     }
@@ -241,45 +235,6 @@ static void flight_under_mains()
 #define HISTORY_SIZE 3
 #define VELOCITY_HISTORY_SIZE 10
 #define DT 0.01f
-void baro_task()
-{
-    static float agl_history[HISTORY_SIZE] = {0};  // Store the last 5 AGL readings
-    // double pressure_hPa;
-    // double temperature;
-
-    static float velocity_samples[VELOCITY_HISTORY_SIZE] = {0};
-    static int sample_index = 0;
-
-    // Shift history
-    for (int i = HISTORY_SIZE - 1; i > 0; i--) {
-        agl_history[i] = agl_history[i - 1];
-    }
-
-    // Update with latest AGL
-    agl_history[0] = bmp390_barometricAGL();
-    barometric_agl = agl_history[0];
-    // bmp390_read_sensor_data(&pressure_hPa, &temperature);
-
-    // Compute first-order backward finite difference
-    if (agl_history[1] != 0) {
-        barometric_velocity = barometric_velocity*0.2 + ((agl_history[0] - agl_history[1]) / DT)*0.8;
-    }
-
-    // Update velocity samples
-    velocity_samples[sample_index] = barometric_velocity;
-    sample_index = (sample_index + 1) % VELOCITY_HISTORY_SIZE;
-
-    float sum = 0;
-    // Calculate the sum of all samples
-    for (int i = 0; i < 10; i++) {
-        sum += velocity_samples[i];
-    }
-
-    // Calculate the average velocity
-    average_barometric_velocity = sum / 10.0;
-
-    // printf("AGL: %f, Pressure: %f, Velocity: %f\n", agl_history[0], pressure_hPa, barometric_velocity);
-}
 
 enum FailStates
 {
@@ -493,19 +448,10 @@ void app_main(void) {
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
-    neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
-
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 4; j++) {
-            if (pyro_continuity(j+1)) {
-                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
-                note(NOTE_E, 8, 300);
-                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-            } else {
-                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 255,  255) } }, 1);
-                note(NOTE_G, 5, 300);
-                neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-            }
+            if (pyro_continuity(j+1)) note(NOTE_E, 8, 300);
+            else note(NOTE_G, 5, 300);
             vTaskDelay(500 / portTICK_PERIOD_MS);
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -625,6 +571,8 @@ void app_main(void) {
                         &mag_x, &mag_y, &mag_z,
                         &gyr_x, &gyr_y, &gyr_z);
             baro_task();
+            lis331_local(&high_g_acc, true);
+            bno_local(&acc, &gyr, &mag, true);
             // double x_accel, y_accel, z_accel;
             // h3lis331dl_read_accel(&x_accel, &y_accel, &z_accel);
             lora_task();
