@@ -47,10 +47,10 @@ void lora_task()
 {
 	batt_voltage = psu_read_battery_voltage();
     lora_packet_t packet;
-    packet.latitude = latitude;
-    packet.longitude = longitude;
+    packet.latitude = pLatitudeX1e7;
+    packet.longitude = pLatitudeX1e7;
     packet.barometric_agl = barometric_agl;
-    packet.gps_altitude = gps_altitude;
+    packet.gps_altitude = pAltitudeMillimetres;
     // packet.barometric_velocity = average_velocity;
     packet.barometric_velocity = average_barometric_velocity;
     packet.acceleration = acceleration;

@@ -51,6 +51,15 @@ static tNeopixelContext neopixel;
 extern imu_raw_3d_t acc, gyr, mag;
 extern imu_float_3d_t high_g_acc;
 
+int32_t pLatitudeX1e7 = 0;
+int32_t pLongitudeX1e7 = 0;
+int32_t pAltitudeMillimetres = 0;
+int32_t pRadiusMillimetres = 0;
+int32_t pAltitudeUncertaintyMillimetres = 0;
+int32_t pSpeedMillimetresPerSecond = 0;
+int32_t pSvs = 0;
+int64_t pTimeUtc = 0;
+
 extern void baro_task(void);  // Add this near the top with other declarations
 
 void imu_task_init()
@@ -133,14 +142,14 @@ enum FlightState
 
 const char* stupid(enum FlightState state) {
     switch (state) {
-        case FS_ON_PAD: return "ON PAD";
-        case FS_POWERED_FLIGHT: return "POWERED FLIGHT";
-        case FS_COASTING: return "COAST";
-        case FS_UNDER_DROGUES: return "UNDER DROGUES";
-        case FS_UNDER_MAINS: return "UNDER MAINS";
-        case FS_LANDED: return "LANDED";
-        case FS_FREEFALL: return "FREEFALL";
-        default: return "UNKNOWN";
+        case FS_ON_PAD: return "";
+        case FS_POWERED_FLIGHT: return "";
+        case FS_COASTING: return "";
+        case FS_UNDER_DROGUES: return "";
+        case FS_UNDER_MAINS: return "";
+        case FS_LANDED: return "";
+        case FS_FREEFALL: return "";
+        default: return "";
     }
 }
 
@@ -341,16 +350,16 @@ flash_packet fp;
 uint32_t addr = 4096;
 
 void save_addr() {
-    uint8_t res = w25qxx_sector_erase(0);
-    res = w25qxx_write(0, &addr, 4);
-    printf("Saving %ld rs: %d\n", addr, res);
-    uint32_t read;
-    res = w25qxx_read(0, &read, 4);
-    printf("Read back %ld res: %d\n\n", read, res);
+    // uint8_t res = w25qxx_sector_erase(0);
+    // res = w25qxx_write(0, &addr, 4);
+    // printf("Saving %ld rs: %d\n", addr, res);
+    // uint32_t read;
+    // res = w25qxx_read(0, &read, 4);
+    // printf("Read back %ld res: %d\n\n", read, res);  
 }
 
 void recall_addr() {
-    w25qxx_read(0, &addr, 4);
+    // w25qxx_read(0, &addr, 4);
 }
 
 // void app_main_loop(void* params) {
@@ -390,95 +399,6 @@ void app_main(void) {
 
     res = w25qxx_init();
     if (res) fail_state(FAIL_FLASH_INIT);
-
-    if (pyro_continuity(PYRO_CHANNEL_1) && pyro_continuity(PYRO_CHANNEL_2)) {
-        printf("DOING CHIP ERASE\n");
-        recall_addr();
-        // TODO: remove this stupid check
-        if (addr == 0xFFFFFFFF || addr == 0) addr = 100*4096;
-        uint32_t n = ceil(addr / 4096)+2;
-        printf("Addr: %ld, erasing: %ld\n", addr, n);
-        addr = 4096;
-        // res = w25qxx_chip_erase();
-        // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-
-        for (int i = 0; i < n; i++) {
-            res = w25qxx_sector_erase(i*4096);
-            if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
-        }
-    } else {
-        printf("DUMPING DATA\n");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-        recall_addr();
-        // TODO: remove this stupid check
-        // if (addr == 0xFFFFFFFF) addr = 100*4096;
-        uint32_t n = ceil(addr / 4096)+2;
-        printf("Addr: %ld, used: %ld\n", addr, n);
-        addr = 4096;
-        while (1) {
-            w25qxx_read(addr, &fp, sizeof(flash_packet));
-            addr += sizeof(flash_packet);
-
-            bool all = true;
-            char* buf = (char*) &fp;
-            for (int i = 0; i < sizeof(flash_packet); i++) {
-                if (buf[i] != 0xFF) all=false;
-            }
-            if (all) break;
-            /*
-    int16_t acc_x, acc_y, acc_z;
-    int16_t mag_x, mag_y, mag_z;
-    int16_t gyr_x, gyr_y, gyr_z;
-    float x_accel, y_accel, z_accel;
-    int64_t timestamp;
-    float latitude;
-    float longitude;
-    float barometric_agl;
-    uint32_t gps_altitude;
-    float barometric_velocity;
-    float average_barometric_velocity;
-    double acceleration;
-    uint8_t pyro_arm = 0;
-    uint8_t flight_state;
-
-        // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
-    */
-   printf("%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %"PRId64", %f, %f, %f, %lu, %f, %f, %f, %d, %d\n",
-                fp.acc_x,
-                fp.acc_y,
-                fp.acc_z,
-                fp.mag_x,
-                fp.mag_y,
-                fp.mag_z,
-                fp.gyr_x,
-                fp.gyr_y,
-                fp.gyr_z,
-                fp.x_accel,
-                fp.y_accel,
-                fp.z_accel,
-                fp.timestamp,
-                fp.latitude,
-                fp.longitude,
-                fp.barometric_agl,
-                fp.gps_altitude,
-                fp.barometric_velocity,
-                fp.average_barometric_velocity,
-                fp.acceleration,
-                fp.pyro_arm,
-                fp.flight_state);
-        }
-
-        save_addr();
-
-        while (1) {
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  255) } }, 1);
-            vTaskDelay(500/portTICK_PERIOD_MS);
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
-            vTaskDelay(500/portTICK_PERIOD_MS);
-
-            vTaskDelay(1000/portTICK_PERIOD_MS);
-        }
-    }
 
     // vTaskDelete(megolavania_task_handle);
 
@@ -541,8 +461,15 @@ void app_main(void) {
 
         // gps 10 Hz
         // s = esp_timer_get_time();
-        if (cycle % (uint32_t)(MAIN_LOOP_FQ/5) == 0) {
-            parse_NMEA(&latitude, &longitude, &gps_altitude);
+        if (cycle % (uint32_t)(MAIN_LOOP_FQ/15) == 0) {
+            readUBX(&pLatitudeX1e7,
+                    &pLongitudeX1e7,
+                    &pAltitudeMillimetres,
+                    &pRadiusMillimetres,
+                    &pAltitudeUncertaintyMillimetres,
+                    &pSpeedMillimetresPerSecond,
+                    &pSvs,
+                    &pTimeUtc, 1);
         }
         // d = esp_timer_get_time() - s;
         // printf("GPS: %" PRId64 "us\n", d);
@@ -639,11 +566,11 @@ void app_main(void) {
                 fp.pyro_arm = pyro_arm;
                 fp.flight_state = flight_state;
 
-                w25qxx_write(addr, &fp, sizeof(flash_packet));
+                // w25qxx_write(addr, &fp, sizeof(flash_packet));
                 addr += sizeof(flash_packet);
                 sub_addr += sizeof(flash_packet);
                 if (sub_addr >= 4096) {
-                    save_addr();
+                    // save_addr();
                     sub_addr = sub_addr-4096;
                 }
             }
@@ -662,7 +589,7 @@ void app_main(void) {
             case FS_LANDED: break;
             default: assert(0); break;
         }
-        printf("%s %d\n", stupid(flight_state), acc.x);
+        // printf("%s %d\n", stupid(flight_state), acc.x);
         // d = esp_timer_get_time() - s;
         // printf("FSM: %" PRId64 "us\n\n", d);
 

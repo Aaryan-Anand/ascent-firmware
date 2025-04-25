@@ -28,7 +28,7 @@ const char* flight_state_to_string(enum FlightState state) {
 static void flight_on_pad()
 {
     // TODO: also check for accelerometer spike
-    printf("Acc X = %d", acc.x);
+    // printf("Acc X = %d", acc.x);
     if (acc.x > 3000) {
         flight_state = FS_POWERED_FLIGHT;
         return;
@@ -39,7 +39,7 @@ static void flight_on_pad()
 
 static void flight_powered_flight()
 {
-    printf("Acc X = %d", acc.x);
+    // printf("Acc X = %d", acc.x);
     if (acc.x < 0) {
         flight_state = FS_COAST;
         return;
@@ -166,7 +166,7 @@ void flight_state_manager(void* pvParameters) {
     while(1) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         
-        printf("%s\n", flight_state_to_string(flight_state));
+        // printf("%s\n", flight_state_to_string(flight_state));
         
         switch (flight_state) {
             case FS_ON_PAD: flight_on_pad(); break;

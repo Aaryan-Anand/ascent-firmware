@@ -10,10 +10,7 @@ extern volatile uint32_t fsm_task_counter;
 
 // Global variables
 extern uint32_t timestamp;
-extern float latitude;
-extern float longitude;
 extern float barometric_agl;
-extern uint32_t gps_altitude;
 extern float barometric_velocity;
 extern float average_barometric_velocity;
 extern double acceleration;
@@ -21,6 +18,16 @@ extern uint8_t pyro_arm;
 extern uint8_t flight_state;
 extern uint8_t flight_event;
 extern double batt_voltage;
+
+// GPS Data
+extern int32_t pLatitudeX1e7;
+extern int32_t pLongitudeX1e7;
+extern int32_t pAltitudeMillimetres;
+extern int32_t pRadiusMillimetres;
+extern int32_t pAltitudeUncertaintyMillimetres;
+extern int32_t pSpeedMillimetresPerSecond;
+extern int32_t pSvs;
+extern int64_t pTimeUtc;
 
 // Sensor data
 extern imu_raw_3d_t acc, gyr, mag;
