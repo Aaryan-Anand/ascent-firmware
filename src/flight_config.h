@@ -7,6 +7,6 @@
 
 // #define LED_PYRO 1
 
-#define LIVE_VIDEO_PYRO_3 1
+// #define LIVE_VIDEO_PYRO_3 1
 
 #endif
