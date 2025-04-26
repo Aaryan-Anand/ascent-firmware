@@ -67,8 +67,6 @@ void baro_task_init()
 {
     bmp390_sensorinit();
     vTaskDelay(10 / portTICK_PERIOD_MS);
-
-    update_ground_pressure();
 }
 
 void init_general()

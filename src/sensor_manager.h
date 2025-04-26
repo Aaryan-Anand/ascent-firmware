@@ -71,7 +71,7 @@ void lis331_get(imu_float_3d_t* acc);
  * 
  * @param acc Pointer to store agl in m
  */
-void bmp_get(float* bmp_agl);
+void bmp_get(baro_double_t* baro);
 
 // Add these declarations to sensor_manager.h
 esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out);
