@@ -8,8 +8,11 @@
 // Add these variable definitions
 imu_raw_3d_t acc, gyr, mag;
 imu_float_3d_t high_g_acc;
+baro_double_t baro;
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;
+
+double baro_alpha = 0.8;
 
 // Add these definitions near the top with other calibration variables
 float bmp_scaling = 1.0f;  // Default to no scaling
@@ -313,8 +316,10 @@ void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped) {
 
 // Add this new function
 void bmp_calib(baro_double_t* baro_out) {
+    static baro_double_t baro_prev = baro_out;
     bmp_get(baro_out);
     baro_out->pressure = baro_out->pressure * bmp_scaling + bmp_bias;
+    baro_out->pressure = baro_out.pressure*baro_alpha +  baro_prev.pressure*(1-baro_alpha);
     pressure_to_m(&baro_out->pressure, &baro_out->temperature, &baro_out->alt);
 }
 
