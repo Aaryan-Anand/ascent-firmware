@@ -20,6 +20,12 @@ typedef struct {
     double z;
 } imu_float_3d_t;
 
+typedef struct {
+    double pressure;
+    double temperature;
+    double alt;
+} baro_double_t;
+
 // === Sensor Initialization Functions ===
 /**
  * @brief Initialize I2C

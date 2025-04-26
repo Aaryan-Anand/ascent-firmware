@@ -8,7 +8,8 @@
 // Add these variable definitions
 imu_raw_3d_t acc, gyr, mag;
 imu_float_3d_t high_g_acc;
-float bmp_agl;
+double groundPressure, groundTemperature, groundAlt;
+uint8_t num_readings = 30;
 
 // Add these definitions near the top with other calibration variables
 float bmp_scaling = 1.0f;  // Default to no scaling
@@ -85,7 +86,8 @@ void i2c_init(){
 void bmp_flight_init(){
     bmp390_sensorinit();
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    update_ground_pressure();
+    update_ground_pressure(&groundPressure, &groundTemperature, num_readings);
+    pressure_to_m(&groundPressure, &groundTemperature, &groundAlt);
 }
 
 void bno_flight_init(){
@@ -147,8 +149,8 @@ void lis331_get(imu_float_3d_t* acc) {
     }
 }
 
-void bmp_get(float *bmp_agl){
-    *bmp_agl = bmp390_barometricAGL();
+void bmp_get(baro_double_t* baro){
+    bmp390_read_sensor_data(&baro->pressure, &baro->temperature);
 }
 
 // Helper function to apply 3x3 matrix multiplication and bias addition
@@ -310,11 +312,13 @@ void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped) {
 }
 
 // Add this new function
-void bmp_calib(float* agl_out) {
-    // Get raw sensor data
-    float raw_agl;
-    bmp_get(&raw_agl);
-    
-    // Apply calibration: scaling first, then bias
-    *agl_out = raw_agl * bmp_scaling + bmp_bias;
+void bmp_calib(baro_double_t* baro_out) {
+    bmp_get(baro_out);
+    baro_out->pressure = baro_out->pressure * bmp_scaling + bmp_bias;
+    pressure_to_m(&baro_out->pressure, &baro_out->temperature, &baro_out->alt);
+}
+
+void bmp_local(baro_double_t* baro_out) {
+    bmp_calib(baro_out);
+    baro_out->alt = baro_out->alt - groundAlt;
 }
