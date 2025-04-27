@@ -48,6 +48,7 @@
 
 #include "flightState_manager.h"
 
+
 // Define all other global variables
 uint32_t timestamp;
 float latitude;
