@@ -5,29 +5,10 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "interface_bno055.h"
+#include "interface_h3lis331dl.h"
+#include "interface_bmp390l.h"
 
-// === Structs ===
-
-typedef struct {
-    int16_t x;
-    int16_t y;
-    int16_t z;
-} imu_raw_3d_t;
-
-typedef struct {
-    double x;
-    double y;
-    double z;
-} imu_float_3d_t;
-
-typedef struct {
-    double pressure;
-    double temperature;
-    double alt;
-} baro_double_t;
-
-// === Sensor Initialization Functions ===
-/**
  * @brief Initialize I2C
  */
 void i2c_init(void);
@@ -67,11 +48,11 @@ esp_err_t bno_get(imu_raw_3d_t* acc, imu_raw_3d_t* gyr, imu_raw_3d_t* mag);
 void lis331_get(imu_float_3d_t* acc);
 
 /**
- * @brief Read BMP
+ * @brief Read BMP390 barometer data
  * 
- * @param acc Pointer to store agl in m
+ * @param baro Pointer to store barometer data
  */
-void bmp_get(float* bmp_agl);
+void bmp_get(baro_double_t* baro);
 
 // Add these declarations to sensor_manager.h
 esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out);
@@ -82,10 +63,17 @@ esp_err_t bno_local(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* 
 void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped);
 
 /**
- * @brief Get calibrated barometric altitude above ground level
+ * @brief Get calibrated barometer data
  * 
- * @param agl_out Pointer to store calibrated altitude in meters
+ * @param baro_out Pointer to store calibrated barometer data
  */
-void bmp_calib(float* agl_out);
+void bmp_calib(baro_double_t* baro_out);
+
+/**
+ * @brief Get altitude above ground level
+ * 
+ * @param baro_out Pointer to store altitude data in local reference frame
+ */
+void bmp_local(baro_double_t* baro_out);
 
 #endif // SENSOR_MANAGER_H
