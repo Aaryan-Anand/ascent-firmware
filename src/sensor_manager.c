@@ -2,6 +2,8 @@
 #include "driver_bno055.h"
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
+#include "interface_bno055.h"
+#include "interface_h3lis331dl.h"
 #include "ascent_r2_hardware_definition.h"
 #include "globals.h"
 #include "freertos/semphr.h"

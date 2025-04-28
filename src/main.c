@@ -46,6 +46,10 @@
 #include "flight_config.h"
 #include "lora_task.h"
 
+#include "interface_bmp390l.h"
+#include "interface_bno055.h"
+#include "interface_h3lis331dl.h"
+
 #include "flightState_manager.h"
 
 #define FUNCTION_DURATION
@@ -90,4 +94,3 @@ void app_main(void) {
         vTaskDelay(10 / portTICK_PERIOD_MS);  // 10ms = 100Hz update rate
     }
 }
-
