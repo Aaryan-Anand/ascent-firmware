@@ -4,6 +4,7 @@
 #include "interface_bmp390l.h"
 #include "ascent_r2_hardware_definition.h"
 #include "globals.h"
+#include "freertos/semphr.h"
 
 // Keep these variable definitions
 imu_raw_3d_t acc, gyr, mag;
@@ -63,6 +64,11 @@ void i2c_init(){
         printf("Failed to initialize I2C\n");
         return;
     }
+    
+    // Initialize interface mutexes
+    bno055_interface_init();
+    h3lis331dl_interface_init();
+    bmp390_interface_init();
 }
 
 void bmp_flight_init(){

@@ -6,6 +6,18 @@
 #define QUARTER_NOTE_MS 135
 #define GAP_MS 1
 
+void ascent_startup_beep(void) {
+    note(NOTE_C, OCTAVE_4, 75);
+    vTaskDelay(pdMS_TO_TICKS(25));
+    note(NOTE_E, OCTAVE_4, 75);
+    vTaskDelay(pdMS_TO_TICKS(25));
+    note(NOTE_G, OCTAVE_4, 75);
+    vTaskDelay(pdMS_TO_TICKS(25));
+    note(NOTE_C, OCTAVE_5, 75);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    note(NOTE_G, OCTAVE_5, 750);
+}
+
 // Helper function to play a note for a given duration factor (duration = factor * quarter note).
 void play_tone(note_t n, octave_t o, float factor) {
     // Calculate the note duration in milliseconds

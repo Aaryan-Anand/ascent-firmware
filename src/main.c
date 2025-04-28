@@ -48,6 +48,7 @@
 
 #include "flightState_manager.h"
 
+#define FUNCTION_DURATION
 
 // Define all other global variables
 uint32_t timestamp;
@@ -63,117 +64,30 @@ uint8_t flight_state;
 uint8_t flight_event;
 double batt_voltage;
 
-// Change mutex to binary semaphore
-SemaphoreHandle_t i2c_semaphore;
-
-
-// Add a timer task to calculate and print frequencies
-
-void init_sensors(void) {
-    i2c_init();
-    vTaskDelay(pdMS_TO_TICKS(50));
-    bmp_flight_init();
-    vTaskDelay(pdMS_TO_TICKS(10));
-    bno_flight_init();
-    vTaskDelay(pdMS_TO_TICKS(10));
-    lis331_flight_init();
-    vTaskDelay(pdMS_TO_TICKS(10));
-}
-
-void bno_task(void* pvParameters) {
-    while(1) {
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-        if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(2)) == pdTRUE) {
-            bno_local(&acc, &gyr, &mag, true);
-            xSemaphoreGive(i2c_semaphore);
-        }
-    }
-}
-
-void lis_task(void* pvParameters) {
-    while(1) {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-        if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(1)) == pdTRUE) {
-            lis331_local(&high_g_acc, true);
-            xSemaphoreGive(i2c_semaphore);
-        }
-    }
-}
-
-void bmp_task(void* pvParameters) {
-    while(1) {
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-        if (xSemaphoreTake(i2c_semaphore, pdMS_TO_TICKS(5)) == pdTRUE) {
-            bmp_calib(&barometric_agl);
-            baro_task();
-            xSemaphoreGive(i2c_semaphore);
-        }
-    }
-}
+// Sensor data variables (moved from sensor_manager.c)
+imu_raw_3d_t acc, gyr, mag;         // BNO055 IMU data
+imu_float_3d_t high_g_acc;          // H3LIS331DL high-G accelerometer data
+baro_double_t baro;                 // BMP390 barometer data
 
 void app_main(void) {
-    // Create binary semaphore instead of mutex
-    // i2c_semaphore = xSemaphoreCreateBinary();
-    // xSemaphoreGive(i2c_semaphore); // Make it available
+    printf("Initializing sensors...");
     
-    // // Configure watchdog timer
-    // esp_task_wdt_config_t wdt_config = {
-    //     .timeout_ms = 5000,
-    //     .idle_core_mask = (1 << 0),
-    //     .trigger_panic = false
-    // };
-    // esp_task_wdt_init(&wdt_config);
-
-    // // Initialize sensors with mutex protection
-    // xSemaphoreTake(i2c_semaphore, portMAX_DELAY);
-    // init_sensors();
-    // xSemaphoreGive(i2c_semaphore);
-
-    // // Create tasks with optimized priorities
-    // xTaskCreatePinnedToCore(
-    //     lis_task,          // Fastest sensor gets highest priority
-    //     "lis_task",
-    //     8192,  // Increased stack size
-    //     NULL,
-    //     1,
-    //     NULL,
-    //     1
-    // );
-
-    // vTaskDelay(pdMS_TO_TICKS(3));
-
-    // xTaskCreatePinnedToCore(
-    //     bno_task,          // Second fastest
-    //     "bno_task",
-    //     8192,
-    //     NULL,
-    //     1,
-    //     NULL,
-    //     1
-    // );
-
-    // vTaskDelay(pdMS_TO_TICKS(3));
-
-    // xTaskCreatePinnedToCore(
-    //     bmp_task,          // Slowest sensor
-    //     "bmp_task",
-    //     8192,
-    //     NULL,
-    //     1,
-    //     NULL,
-    //     1
-    // );
-
-    // vTaskDelay(pdMS_TO_TICKS(2));
-
-    // xTaskCreatePinnedToCore(
-    //     flight_state_manager,
-    //     "FSM_task",
-    //     8192,
-    //     NULL,
-    //     5,  // Lowest priority of core 1 tasks
-    //     NULL,
-    //     1
-    // );
+    // Initialize I2C bus (which also initializes the sensor interface mutexes)
+    i2c_init();
+    printf("BNO055 IMU initialized");
+    lis331_flight_init();
+    printf("H3LIS331DL accelerometer initialized");
+    bmp_flight_init();
+    printf("BMP390 barometer initialized");
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    printf("All sensors initialized");
+    printf("Starting sensor reading loop");
+    
+    while (1) {
+        bno055_get_local(&acc, &gyr, &mag, false);
+        h3lis331dl_get_local(&high_g_acc, false);
+        bmp390_get_local(&baro);
+        vTaskDelay(10 / portTICK_PERIOD_MS);  // 10ms = 100Hz update rate
+    }
 }
 

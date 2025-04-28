@@ -9,6 +9,7 @@
 #include "interface_h3lis331dl.h"
 #include "interface_bmp390l.h"
 
+/**
  * @brief Initialize I2C
  */
 void i2c_init(void);
