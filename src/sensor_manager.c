@@ -8,10 +8,12 @@
 #include "globals.h"
 #include "freertos/semphr.h"
 
+// These variables are defined in main.c, so we use extern here
+extern imu_raw_3d_t acc, gyr, mag;
+extern imu_float_3d_t high_g_acc;
+extern baro_double_t baro;
+
 // Keep these variable definitions
-imu_raw_3d_t acc, gyr, mag;
-imu_float_3d_t high_g_acc;
-baro_double_t baro;
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;
 

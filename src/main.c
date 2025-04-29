@@ -43,14 +43,11 @@
 
 #include "ascent_r2_hardware_definition.h"  // Hardware definitions
 
-#include "flight_config.h"
-#include "lora_task.h"
-
 #include "interface_bmp390l.h"
 #include "interface_bno055.h"
 #include "interface_h3lis331dl.h"
 
-#include "flightState_manager.h"
+//#include "flightState_manager.h"
 
 #define FUNCTION_DURATION
 
