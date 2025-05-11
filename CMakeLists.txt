@@ -16,10 +16,12 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/indicator
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/lora
     ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/neopixel
+    ${CMAKE_CURRENT_SOURCE_DIR}/ascent-drivers/wireless
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # Inform the build system that your main component lives in the 'src' directory.
 set(PROJECT_COMPONENTS src)
+idf_build_set_property(MINIMAL_BUILD ON)
 
 project(ascent-firmware)

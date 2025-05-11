@@ -61,9 +61,20 @@ void lora_task()
     packet.timestamp = esp_timer_get_time() / 1e3;
 
     memcpy(packet_data, &packet, sizeof(lora_packet_t));
-    lora_send_packet(packet_data, sizeof(lora_packet_t));
+    // lora_send_packet(packet_data, sizeof(lora_packet_t));
 
-    printf("Sent packet at %ld ms: Latitude: %.6f, Longitude: %.6f, GPSAltitude: %ld, Baro Altitude: %f, Baro Velocity: %f, Acceleration: %f, Pyro Arm: %d, Flight State: %d, Battery Voltage: %f\n", packet.timestamp, packet.latitude, packet.longitude, packet.gps_altitude, packet.barometric_agl, packet.barometric_velocity, packet.acceleration, packet.pyro_arm, packet.flight_state, packet.batt_voltage);
+    // printf("Time:%lu,Latitude:%.6f,Longitude:%.6f,GPSAltitude:%lu,BarometricAltitude:%.2f,Velocity:%.2f,Acceleration:%.2f,PyroArm:%u,FlightState:%u,RSSI:%i,BVolt:%.3f\n",
+    //                         packet.timestamp,
+    //                         packet.latitude,
+    //                         packet.longitude,
+    //                         packet.gps_altitude,
+    //                         packet.barometric_agl,
+    //                         packet.barometric_velocity,
+    //                         packet.acceleration,
+    //                         packet.pyro_arm,
+    //                         packet.flight_state,
+    //                         10000, // Ensure rssi is defined in your code
+    //                         packet.batt_voltage);
 
     int lost = lora_packet_lost();
     if (lost != 0) {
