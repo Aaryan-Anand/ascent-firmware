@@ -47,6 +47,10 @@
 #include "interface_bno055.h"
 #include "interface_h3lis331dl.h"
 
+#include "lora_task.h"
+#include "datalogging.h"
+#include "spi_manager.h"
+
 //#include "flightState_manager.h"
 
 #define FUNCTION_DURATION
@@ -70,6 +74,9 @@ imu_raw_3d_t acc, gyr, mag;         // BNO055 IMU data
 imu_float_3d_t high_g_acc;          // H3LIS331DL high-G accelerometer data
 baro_double_t baro;                 // BMP390 barometer data
 
+extern uint32_t addr;
+#include <stdlib.h>
+
 void app_main(void) {
     printf("Initializing sensors...");
     
@@ -90,4 +97,24 @@ void app_main(void) {
         bmp390_get_local(&baro);
         vTaskDelay(10 / portTICK_PERIOD_MS);  // 10ms = 100Hz update rate
     }
+
+    // printf("Hello, World!\n");
+
+    // psu_init_default();
+    // spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
+    // lora_task_init();
+    // uint8_t res;
+    // res = w25qxx_init();
+    // if (res) printf("Failed to initalize flash\n");
+    
+    // while (1) {
+    //     printf("Trying to use lora\n");
+    //     lora_task();
+    //     // vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    //     printf("Trying to use flash\n");
+    //     addr = rand() % 500;
+    //     save_addr();
+    //     // vTaskDelay(100 / portTICK_PERIOD_MS);
+    // }
 }

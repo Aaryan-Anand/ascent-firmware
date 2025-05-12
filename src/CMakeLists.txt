@@ -6,4 +6,5 @@ idf_component_register(
         "sensor_manager.c"
         "flightstate_manager.c"
         "sensor_fusion.c"
+        "datalogging.c"
 )
