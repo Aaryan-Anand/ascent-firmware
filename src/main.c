@@ -78,46 +78,43 @@ extern uint32_t addr;
 #include <stdlib.h>
 
 void app_main(void) {
-    printf("Hello, World!\n");
-
-    psu_init_default();
-
-    spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
-
-    lora_task_init();
-
-    uint8_t res;
-    res = w25qxx_init();
-    if (res) printf("Failed to initalize flash\n");
+    printf("Initializing sensors...");
+    
+    // Initialize I2C bus (which also initializes the sensor interface mutexes)
+    i2c_init();
+    printf("BNO055 IMU initialized");
+    lis331_flight_init();
+    printf("H3LIS331DL accelerometer initialized");
+    bmp_flight_init();
+    printf("BMP390 barometer initialized");
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    printf("All sensors initialized");
+    printf("Starting sensor reading loop");
     
     while (1) {
-        printf("Trying to use lora\n");
-        lora_task();
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        printf("Trying to use flash\n");
-        addr = rand() % 500;
-        save_addr();
-        // vTaskDelay(100 / portTICK_PERIOD_MS);
+        bno055_get_local(&acc, &gyr, &mag, false);
+        h3lis331dl_get_local(&high_g_acc, false);
+        bmp390_get_local(&baro);
+        vTaskDelay(10 / portTICK_PERIOD_MS);  // 10ms = 100Hz update rate
     }
 
-    // printf("Initializing sensors...");
-    
-    // // Initialize I2C bus (which also initializes the sensor interface mutexes)
-    // i2c_init();
-    // printf("BNO055 IMU initialized");
-    // lis331_flight_init();
-    // printf("H3LIS331DL accelerometer initialized");
-    // bmp_flight_init();
-    // printf("BMP390 barometer initialized");
-    // vTaskDelay(100 / portTICK_PERIOD_MS);
-    // printf("All sensors initialized");
-    // printf("Starting sensor reading loop");
+    // printf("Hello, World!\n");
+
+    // psu_init_default();
+    // spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
+    // lora_task_init();
+    // uint8_t res;
+    // res = w25qxx_init();
+    // if (res) printf("Failed to initalize flash\n");
     
     // while (1) {
-    //     bno055_get_local(&acc, &gyr, &mag, false);
-    //     h3lis331dl_get_local(&high_g_acc, false);
-    //     bmp390_get_local(&baro);
-    //     vTaskDelay(10 / portTICK_PERIOD_MS);  // 10ms = 100Hz update rate
+    //     printf("Trying to use lora\n");
+    //     lora_task();
+    //     // vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    //     printf("Trying to use flash\n");
+    //     addr = rand() % 500;
+    //     save_addr();
+    //     // vTaskDelay(100 / portTICK_PERIOD_MS);
     // }
 }
