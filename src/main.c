@@ -25,6 +25,7 @@
 #include "driver_w25qxx.h"
 #include "wifi_hotspot.h"
 #include "wifi_websocket.h"
+#include "wifi_server.h"
 
 #include "esp_wifi.h"
 #include "esp_cpu.h"
@@ -111,10 +112,10 @@ void init_everything()
 
     wifi_AP_init();
 
-    wifi_websocket_init();
+    setup_webserver();
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-    // note(NOTE_G, 8, 300);
+    note(NOTE_G, 8, 300);
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
