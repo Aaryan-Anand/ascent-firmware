@@ -11,7 +11,7 @@ static float barometric_agl;
 static float barometric_velocity;
 static float average_barometric_velocity;
 
-void baro_update(float *agl, float *vel, float *avg_vel)
+void baro_update(const baro_double_t * const baro, float *agl, float *vel, float *avg_vel)
 {
     static float agl_history[HISTORY_SIZE] = {0};  // Store the last 5 AGL readings
     // double pressure_hPa;
@@ -26,9 +26,7 @@ void baro_update(float *agl, float *vel, float *avg_vel)
     }
 
     // Update with latest AGL
-    baro_double_t out;
-    bmp390_get_local(&out);
-    agl_history[0] = out.alt;
+    agl_history[0] = baro->alt;
     barometric_agl = agl_history[0];
     // bmp390_read_sensor_data(&pressure_hPa, &temperature);
 
@@ -51,4 +49,8 @@ void baro_update(float *agl, float *vel, float *avg_vel)
     average_barometric_velocity = sum / 10.0;
 
     // printf("AGL: %f, Pressure: %f, Velocity: %f\n", agl_history[0], pressure_hPa, barometric_velocity);
+
+    *agl = barometric_agl;
+    *vel = barometric_velocity;
+    *avg_vel = average_barometric_velocity;
 }
