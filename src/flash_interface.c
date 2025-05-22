@@ -1,6 +1,7 @@
 #include "flash_interface.h"
 
 #include "stdatomic.h"
+#include "math.h"
 #include "stdlib.h"
 #include "fail.h"
 #include "driver_w25qxx.h"
@@ -27,10 +28,10 @@ SemaphoreHandle_t head_semaphore;
 
 static void save_addr() {
     uint8_t res = w25qxx_sector_erase(0);
-    res = w25qxx_write(0, &addr, 4);
+    res = w25qxx_write(0, (uint8_t*)&addr, 4);
     // printf("Saving %ld rs: %d\n", addr, res);
     uint32_t read;
-    res = w25qxx_read(0, &read, 4);
+    res = w25qxx_read(0, (uint8_t*)&read, 4);
     if (addr != read) {
         // TODO: something has gone very wrong
     }
@@ -38,7 +39,7 @@ static void save_addr() {
 }
 
 static void recall_addr() {
-    w25qxx_read(0, &addr, 4);
+    w25qxx_read(0, (uint8_t*)&addr, 4);
 }
 
 void flash_flight_init(void)
@@ -46,13 +47,15 @@ void flash_flight_init(void)
     uint8_t res;
 
     res = w25qxx_init();
-    if (res) fail_state(FAIL_FLASH_INIT);
+    if (res) fail(FAIL_FLASH_INIT);
 
     addr = sub_addr = FLIGHT_LOG_START_ADDR;
 
     // write_head_semaphore = xSemaphoreCreateMutex();
     // read_head_semaphore = xSemaphoreCreateMutex();
     head_semaphore = xSemaphoreCreateMutex();
+    write_head = 0;
+    read_head = RING_BUFFER_SIZE-1;
 }
 
 void flash_prepare_for_flight(void) {
@@ -127,7 +130,7 @@ void flash_dump_to_serial(void) {
 
         printf("%f,", fp.latitude);
         printf("%f,", fp.longitude);
-        printf("%ul,", fp.gps_altitude);
+        printf("%lu,", fp.gps_altitude);
         
         
         printf("%f,", fp.ekf_latitude);
@@ -137,6 +140,8 @@ void flash_dump_to_serial(void) {
         printf("%f,", fp.ekf_pitch);
         printf("%f,", fp.ekf_yaw);
         printf("%f,", fp.ekf_roll);
+
+        printf("\n");
     }
 
     save_addr();
@@ -156,11 +161,12 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     while (1) {
-        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+        // printf("here\n");
+        // if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
             if (write_head != read_head) break;
 
-            xSemaphoreGive(head_semaphore);
-        }
+        //     xSemaphoreGive(head_semaphore);
+        // }
 
         ets_delay_us(10);
     }
@@ -179,7 +185,8 @@ void flash_write_queue(int64_t max_time) {
 
         while (1) {
             if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-                if (read_head == write_head) return;
+                uint32_t next = (read_head + 1) % RING_BUFFER_SIZE;
+                if (next == write_head) return;
 
                 xSemaphoreGive(head_semaphore);
             }
@@ -196,4 +203,8 @@ void flash_write_queue(int64_t max_time) {
             if (delta > max_time) break;
         }
 
+}
+
+void flash_debug() {
+    printf("FLASH: %lu, %lu\n", write_head, read_head);
 }
