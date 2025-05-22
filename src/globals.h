@@ -23,9 +23,13 @@ extern imu_float_3d_t high_g_acc;
 extern baro_double_t baro;
 
 // gps data
-extern float latitude;
-extern float longitude;
-extern uint32_t gps_altitude;
+extern uint32_t UTCtstamp;
+extern int32_t lon;
+extern int32_t lat;
+extern int32_t gps_altitude;
+extern int32_t hMSL;
+extern uint8_t fixType;
+extern uint8_t numSV;
 
 extern float ekf_latitude;
 extern float ekf_longitude;
