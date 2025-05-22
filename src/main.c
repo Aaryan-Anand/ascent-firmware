@@ -278,7 +278,7 @@ void init_everything(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    gps_init();
+    GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();
