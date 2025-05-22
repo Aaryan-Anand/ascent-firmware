@@ -77,14 +77,16 @@ void primary_task(void *pvParameters) {
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/15) == 0) {
             imu_raw_3d_t acc, gyr, mag;
             imu_float_3d_t high_g_acc;
-            baro_double_t baro;
             bno055_get_local(&acc, &gyr, &mag, false);
             h3lis331dl_get_local(&high_g_acc, false);
+
+            baro_double_t baro;
+            bmp390_get_local(&baro);
 
             float barometric_agl;
             float barometric_velocity;
             float average_barometric_velocity;
-            baro_update(&barometric_agl, &barometric_velocity, &average_barometric_velocity);
+            baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
             float latitude;
             float longitude;
