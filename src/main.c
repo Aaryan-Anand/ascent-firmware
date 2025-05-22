@@ -26,6 +26,7 @@ static tNeopixelContext neopixel;
 #include "driver_buzzer.h"
 #include "driver_pyro.h"
 #include "driver_psu.h"
+#include "driver_psu.h"
 #include "driver_bno055.h"
 #include "driver_w25qxx.h"
 #include "driver/gpio.h"
@@ -59,20 +60,25 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
     *ekf_roll = 0.0f;
 }
 
-void fake_gps(float *lat, float *lng, float *alt) {
+void fake_gps(float *lat, float *lng, uint32_t *alt) {
     *lat = 0.0f;
     *lng = 0.0f;
     *alt = 0.0f;
 }
 
 TaskHandle_t primary_task_handle;
-#define PRIMARY_LOOP_FQ ((uint32_t)15)
+#define PRIMARY_LOOP_FQ ((uint32_t)30)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
 void primary_task(void *pvParameters) {
     uint32_t cycle = 0;
 
     while (1) {
         int64_t start_time = esp_timer_get_time();
+
+        int sum = 0;
+        sum += pyro_continuity(PYRO_CHANNEL_1);
+        sum += pyro_continuity(PYRO_CHANNEL_2)*2;
+        uint8_t pyro_arm = sum;
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
             imu_raw_3d_t acc, gyr, mag;
@@ -116,7 +122,7 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[PRIMARY] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -166,7 +172,8 @@ void secondary_task(void *pvParameters) {
         }
 
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
-            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+            // flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+            flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -180,7 +187,7 @@ void secondary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[SECONDARY] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -216,8 +223,12 @@ void app_main(void) {
     // TaskHandle_t megolavania_task_handle;
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-    xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+    // if (psu_get_power_source().source == POWER_SOURCE_USB_ONLY) {
+    //     flash_dump_to_serial();
+    // } else {
+        xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+    // }
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
@@ -287,7 +298,7 @@ void init_everything(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    GPS_init();
+    gps_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();

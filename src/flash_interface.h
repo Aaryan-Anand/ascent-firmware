@@ -42,4 +42,6 @@ void flash_queue_packet(flash_packet *packet);
 
 void flash_write_queue(int64_t max_time);
 
+void flash_debug();
+
 #endif
