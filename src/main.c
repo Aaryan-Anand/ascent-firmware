@@ -53,6 +53,7 @@ void fake_ekf(void) {
     bno055_get_local(&acc, &gyr, &mag, false);
     h3lis331dl_get_local(&high_g_acc, false);
     bmp390_get_local(&baro);
+    GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
 }
 
 TaskHandle_t primary_task_handle;
@@ -112,8 +113,8 @@ void secondary_task(void *pvParameters) {
             uint8_t flight_state;
             double batt_voltage;
             */
-            lora_packet.latitude = 0;
-            lora_packet.longitude = 0;
+            lora_packet.latitude = lat;
+            lora_packet.longitude = lon;
             lora_packet.barometric_agl = barometric_agl;
             lora_packet.gps_altitude = gps_altitude;
             lora_packet.barometric_velocity = barometric_velocity;
@@ -247,7 +248,7 @@ void init_everything(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    gps_init();
+    GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();
