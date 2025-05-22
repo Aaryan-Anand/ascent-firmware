@@ -45,8 +45,6 @@ void lora_flight_init()
 
 void lora_transmit_packet(lora_packet_t *packet)
 {
-	batt_voltage = psu_read_battery_voltage();
-
     packet->timestamp = esp_timer_get_time() / 1e3;
 
     memcpy(packet_data, packet, sizeof(lora_packet_t));

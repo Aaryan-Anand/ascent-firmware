@@ -42,6 +42,7 @@ static tNeopixelContext neopixel;
 #include "fail.h"
 #include "lora_interface.h"
 #include "flash_interface.h"
+#include "baro.h"
 
 void validate_esp32(void);
 void init_everything(void);
@@ -49,10 +50,19 @@ void beep_pyro_cont(void);
 void turn_on_cameras(void);
 void turn_on_fan(void);
 
-void fake_ekf(void) {
-    bno055_get_local(&acc, &gyr, &mag, false);
-    h3lis331dl_get_local(&high_g_acc, false);
-    bmp390_get_local(&baro);
+void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, float *ekf_pitch, float *ekf_yaw, float *ekf_roll) {
+    *ekf_latitude = 0.0f;
+    *ekf_longitude = 0.0f;
+    *ekf_altitude = 0.0f;
+    *ekf_pitch = 0.0f;
+    *ekf_yaw = 0.0f;
+    *ekf_roll = 0.0f;
+}
+
+void fake_gps(float *lat, float *lng, float *alt) {
+    *lat = 0.0f;
+    *lng = 0.0f;
+    *alt = 0.0f;
 }
 
 TaskHandle_t primary_task_handle;
@@ -65,9 +75,30 @@ void primary_task(void *pvParameters) {
         int64_t start_time = esp_timer_get_time();
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/15) == 0) {
-            fake_ekf();
-        }
+            imu_raw_3d_t acc, gyr, mag;
+            imu_float_3d_t high_g_acc;
+            baro_double_t baro;
+            bno055_get_local(&acc, &gyr, &mag, false);
+            h3lis331dl_get_local(&high_g_acc, false);
 
+            float barometric_agl;
+            float barometric_velocity;
+            float average_barometric_velocity;
+            baro_update(&barometric_agl, &barometric_velocity, &average_barometric_velocity);
+
+            float latitude;
+            float longitude;
+            uint32_t gps_altitude;
+            fake_gps(&latitude, &longitude, &gps_altitude);
+
+            float ekf_latitude;
+            float ekf_longitude;
+            float ekf_altitude;
+            float ekf_pitch;
+            float ekf_yaw;
+            float ekf_roll;
+            fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
+        }
 
         int64_t end_time = esp_timer_get_time();
         int64_t delta = end_time - start_time;
@@ -114,10 +145,10 @@ void secondary_task(void *pvParameters) {
             */
             lora_packet.latitude = 0;
             lora_packet.longitude = 0;
-            lora_packet.barometric_agl = barometric_agl;
-            lora_packet.gps_altitude = gps_altitude;
-            lora_packet.barometric_velocity = barometric_velocity;
-            lora_packet.acceleration = sqrt(acc.x*acc.x/10000 + acc.z*acc.y/10000 + acc.z*acc.z/10000);
+            lora_packet.barometric_agl = 0;
+            lora_packet.gps_altitude = 0;
+            lora_packet.barometric_velocity = 0;
+            lora_packet.acceleration = 0;
 
             int sum = 0;
             sum += pyro_continuity(PYRO_CHANNEL_1);
