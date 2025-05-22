@@ -74,7 +74,7 @@ void primary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/15) == 0) {
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
             imu_raw_3d_t acc, gyr, mag;
             imu_float_3d_t high_g_acc;
             bno055_get_local(&acc, &gyr, &mag, false);
@@ -100,6 +100,9 @@ void primary_task(void *pvParameters) {
             float ekf_yaw;
             float ekf_roll;
             fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
+
+            flash_packet fp = {esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
+            flash_queue_packet(&fp);
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -160,6 +163,10 @@ void secondary_task(void *pvParameters) {
             lora_packet.batt_voltage = psu_read_battery_voltage();
 
             lora_transmit_packet(&lora_packet);
+        }
+
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
         }
 
         int64_t end_time = esp_timer_get_time();

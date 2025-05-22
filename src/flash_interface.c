@@ -1,8 +1,14 @@
 #include "flash_interface.h"
 
+#include "stdatomic.h"
+#include "stdlib.h"
 #include "fail.h"
 #include "driver_w25qxx.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "ascent_r2_hardware_definition.h"
+#include <rom/ets_sys.h>
 
 #define MAX_SECTORS 16384
 #define FLIGHT_LOG_START_ADDR 4096
@@ -10,6 +16,14 @@
 
 static uint32_t addr = FLIGHT_LOG_START_ADDR;
 static uint32_t sub_addr = FLIGHT_LOG_START_ADDR;
+
+#define RING_BUFFER_SIZE 50
+flash_packet ring_buffer[RING_BUFFER_SIZE];
+_Atomic uint32_t write_head = 0;
+_Atomic uint32_t read_head = 0;
+// SemaphoreHandle_t write_head_semaphore;
+// SemaphoreHandle_t read_head_semaphore;
+SemaphoreHandle_t head_semaphore;
 
 static void save_addr() {
     uint8_t res = w25qxx_sector_erase(0);
@@ -35,6 +49,10 @@ void flash_flight_init(void)
     if (res) fail_state(FAIL_FLASH_INIT);
 
     addr = sub_addr = FLIGHT_LOG_START_ADDR;
+
+    // write_head_semaphore = xSemaphoreCreateMutex();
+    // read_head_semaphore = xSemaphoreCreateMutex();
+    head_semaphore = xSemaphoreCreateMutex();
 }
 
 void flash_prepare_for_flight(void) {
@@ -79,65 +97,46 @@ void flash_dump_to_serial(void) {
             if (buf[i] != 0xFF) all=false;
         }
         if (all) break;
-        /*
-    int64_t timestamp;
 
-    int16_t acc_x, acc_y, acc_z;
-    int16_t mag_x, mag_y, mag_z;
-    int16_t gyr_x, gyr_y, gyr_z;
+        printf("%"PRId64",", fp.timestamp);
+        printf("%d,", fp.pyro_arm);
 
-    double x_accel, y_accel, z_accel;
+        printf("%d,", fp.acc.x);
+        printf("%d,", fp.acc.y);
+        printf("%d,", fp.acc.z);
 
-    float latitude;
-    float longitude;
-    uint32_t gps_altitude;
+        printf("%d,", fp.gyr.x);
+        printf("%d,", fp.gyr.y);
+        printf("%d,", fp.gyr.z);
 
-    float barometric_agl;
+        printf("%d,", fp.mag.x);
+        printf("%d,", fp.mag.y);
+        printf("%d,", fp.mag.z);
 
-    uint8_t pyro_arm;
-    uint8_t flight_state;
+        printf("%f,", fp.high_g_acc.x);
+        printf("%f,", fp.high_g_acc.y);
+        printf("%f,", fp.high_g_acc.z);
 
-    float ekf_latitude;
-    float ekf_longitude;
-    float ekf_altitude;
-    float ekf_pitch;
-    float ekf_yaw;
-    float ekf_roll;
+        printf("%f,", fp.baro.alt);
+        printf("%f,", fp.baro.pressure);
+        printf("%f,", fp.baro.temperature);
 
-    // printf("Delta: %" PRId64 "us or %ldms or %f\n", delta, time_ms, 1.0f/(time_ms/1000.0f));
-    */
-        printf("%"PRId64", %d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %lu, %f, %d, %d, %f, %f, %f, %f, %f, %f, %f\n",
-            fp.timestamp,
+        printf("%f,", fp.barometric_agl);
+        printf("%f,", fp.barometric_velocity);
+        printf("%f,", fp.average_barometric_velocity);
 
-            fp.acc_x,
-            fp.acc_y,
-            fp.acc_z,
-            fp.mag_x,
-            fp.mag_y,
-            fp.mag_z,
-            fp.gyr_x,
-            fp.gyr_y,
-            fp.gyr_z,
+        printf("%f,", fp.latitude);
+        printf("%f,", fp.longitude);
+        printf("%ul,", fp.gps_altitude);
+        
+        
+        printf("%f,", fp.ekf_latitude);
+        printf("%f,", fp.ekf_longitude);
+        printf("%f,", fp.ekf_altitude);
 
-            fp.x_accel,
-            fp.y_accel,
-            fp.z_accel,
-
-            fp.latitude,
-            fp.longitude,
-            fp.gps_altitude,
-
-            fp.barometric_agl,
-            fp.pyro_arm,
-            fp.flight_state,
-
-            fp.ekf_latitude,
-            fp.ekf_longitude,
-            fp.ekf_altitude,
-            fp.ekf_pitch,
-            fp.ekf_yaw,
-            fp.ekf_roll
-        );
+        printf("%f,", fp.ekf_pitch);
+        printf("%f,", fp.ekf_yaw);
+        printf("%f,", fp.ekf_roll);
     }
 
     save_addr();
@@ -153,4 +152,48 @@ void flash_write_packet(flash_packet *packet) {
         save_addr();
         sub_addr = sub_addr-SECTOR_SIZE;
     }
+}
+
+void flash_queue_packet(flash_packet *packet) {
+    while (1) {
+        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+            if (write_head != read_head) break;
+
+            xSemaphoreGive(head_semaphore);
+        }
+
+        ets_delay_us(10);
+    }
+
+    memcpy(&ring_buffer[write_head], packet, sizeof(flash_packet));
+
+    if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+        write_head = (write_head + 1) % RING_BUFFER_SIZE;
+
+        xSemaphoreGive(head_semaphore);
+    }
+}
+
+void flash_write_queue(int64_t max_time) {
+        int64_t start_time = esp_timer_get_time();
+
+        while (1) {
+            if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+                if (read_head == write_head) return;
+
+                xSemaphoreGive(head_semaphore);
+            }
+
+            flash_write_packet(&ring_buffer[read_head]);
+
+            if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+                read_head = (read_head + 1) % RING_BUFFER_SIZE;
+
+                xSemaphoreGive(head_semaphore);
+            }
+
+            int64_t delta = esp_timer_get_time() - start_time;
+            if (delta > max_time) break;
+        }
+
 }
