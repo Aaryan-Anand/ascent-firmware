@@ -6,5 +6,5 @@ idf_component_register(
         "sensor_manager.c"
         "lora_interface.c"
         "flash_interface.c"
-        "cJSON.c"
+        "baro.c"
 )
