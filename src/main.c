@@ -50,6 +50,7 @@ void init_everything(void);
 void beep_pyro_cont(void);
 void turn_on_cameras(void);
 void turn_on_fan(void);
+void flash_erase_jingle(void);
 
 void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, float *ekf_pitch, float *ekf_yaw, float *ekf_roll) {
     *ekf_latitude = 0.0f;
@@ -107,9 +108,8 @@ void primary_task(void *pvParameters) {
             float ekf_roll;
             fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
 
-            flash_packet fp = {esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
+            flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             flash_queue_packet(&fp);
-            flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -130,7 +130,7 @@ void primary_task(void *pvParameters) {
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)15)
+#define SECONDARY_LOOP_FQ ((uint32_t)5)
 #define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
 void secondary_task(void *pvParameters) {
     uint32_t cycle = 0;
@@ -140,7 +140,8 @@ void secondary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/5) == 0) {
             /*
             uint32_t timestamp; (will be auto set by transmit function)
             float latitude;
@@ -170,9 +171,10 @@ void secondary_task(void *pvParameters) {
             lora_transmit_packet(&lora_packet);
         }
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) != 0) {
+        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/5) == 0) {
             flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
-            flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -211,29 +213,25 @@ void app_main(void) {
 
     boot_sound();
 
-    turn_on_cameras();
-    // turn_on_fan();
-
-    // Ready to go
-    beep_pyro_cont();
-
-    // TaskHandle_t megolavania_task_handle;
-    // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
-
-    // if (psu_get_power_source().source == POWER_SOURCE_USB_ONLY) {
+    if (psu_get_power_source().source == POWER_SOURCE_USB_ONLY) {
         flash_dump_to_serial();
-    // } else {
-    //     flash_prepare_for_flight();
+    } else {
+        turn_on_cameras();
+        // turn_on_fan();
 
-    //     note(NOTE_G, 8, 300);
-    //     note(NOTE_G, 8, 300);
-    //     note(NOTE_G, 8, 300);
+        beep_pyro_cont();
 
-    //     vTaskDelay(100 / portTICK_PERIOD_MS);
+        flash_prepare_for_flight();
+        flash_erase_jingle();
 
-    //     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-    //     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
-    // }
+        // TaskHandle_t megolavania_task_handle;
+        // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+    }
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
@@ -357,4 +355,13 @@ void fail(int n)
         }
         vTaskDelay(2000/portTICK_PERIOD_MS);
     }
+}
+
+void flash_erase_jingle(void) {
+    note(NOTE_E, 8, 120);
+    note(NOTE_G, 8, 120);
+    note(NOTE_C, 7, 200);
+    note(NOTE_D, 7, 120);
+    note(NOTE_B, 6, 250);
+    note(NOTE_E, 7, 400);
 }
