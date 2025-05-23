@@ -72,6 +72,7 @@ void flash_prepare_for_flight(void) {
     // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
 
     for (int i = 0; i < n; i++) {
+        printf("Erasing %d\n", i);
         res = w25qxx_sector_erase(i*4096);
         if (res) fail(FAIL_FLASH_CHIP_ERASE);
     }
@@ -161,48 +162,58 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     while (1) {
-        // printf("here\n");
-        // if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-            if (write_head != read_head) break;
+        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+            if (atomic_load(&write_head) != atomic_load(&read_head)) {
+                xSemaphoreGive(head_semaphore);
+                break;
+            }
 
-        //     xSemaphoreGive(head_semaphore);
-        // }
+            xSemaphoreGive(head_semaphore);
+        }
 
-        ets_delay_us(10);
+        // give time for the flash chip to write packets to flash
+        ets_delay_us(100);
     }
 
-    memcpy(&ring_buffer[write_head], packet, sizeof(flash_packet));
+    memcpy(&ring_buffer[atomic_load(&write_head)], packet, sizeof(flash_packet));
 
+    // printf("HERE\n");
     if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-        write_head = (write_head + 1) % RING_BUFFER_SIZE;
+        // printf("BEFORE: %lu\n", write_head);
+        // uint32_t value = atomic_load(&write_head);
+        atomic_store(&write_head, (atomic_load(&write_head) + 1) % RING_BUFFER_SIZE);
+        // printf("AFTER : %lu\n", write_head);
 
         xSemaphoreGive(head_semaphore);
     }
 }
 
 void flash_write_queue(int64_t max_time) {
-        int64_t start_time = esp_timer_get_time();
+    int64_t start_time = esp_timer_get_time();
 
-        while (1) {
-            if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-                uint32_t next = (read_head + 1) % RING_BUFFER_SIZE;
-                if (next == write_head) return;
-
+    while (1) {
+        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+            uint32_t next = (atomic_load(&read_head) + 1) % RING_BUFFER_SIZE;
+            if (next == atomic_load(&write_head)) {
                 xSemaphoreGive(head_semaphore);
+                return;
             }
 
-            flash_write_packet(&ring_buffer[read_head]);
-
-            if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-                read_head = (read_head + 1) % RING_BUFFER_SIZE;
-
-                xSemaphoreGive(head_semaphore);
-            }
-
-            int64_t delta = esp_timer_get_time() - start_time;
-            if (delta > max_time) break;
+            xSemaphoreGive(head_semaphore);
         }
 
+        flash_write_packet(&ring_buffer[atomic_load(&read_head)]);
+
+        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
+            // read_head = (read_head + 1) % RING_BUFFER_SIZE;
+            atomic_store(&read_head, (atomic_load(&read_head) + 1) % RING_BUFFER_SIZE);
+
+            xSemaphoreGive(head_semaphore);
+        }
+
+        int64_t delta = esp_timer_get_time() - start_time;
+        if (delta > max_time) break;
+    }
 }
 
 void flash_debug() {
