@@ -7,6 +7,7 @@
 #include "interface_h3lis331dl.h"
 
 typedef struct {
+    uint32_t n;
     int64_t timestamp;
     uint8_t pyro_arm;
 
@@ -41,7 +42,5 @@ void flash_write_packet(flash_packet *packet);
 void flash_queue_packet(flash_packet *packet);
 
 void flash_write_queue(int64_t max_time);
-
-void flash_debug();
 
 #endif

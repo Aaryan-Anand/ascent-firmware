@@ -1,6 +1,7 @@
 #include "flash_interface.h"
 
 #include "stdatomic.h"
+#include "assert.h"
 #include "math.h"
 #include "stdlib.h"
 #include "fail.h"
@@ -15,16 +16,12 @@
 #define FLIGHT_LOG_START_ADDR 4096
 #define SECTOR_SIZE 4096
 
+static uint32_t n = 0;
 static uint32_t addr = FLIGHT_LOG_START_ADDR;
 static uint32_t sub_addr = FLIGHT_LOG_START_ADDR;
 
 #define RING_BUFFER_SIZE 50
-flash_packet ring_buffer[RING_BUFFER_SIZE];
-_Atomic uint32_t write_head = 0;
-_Atomic uint32_t read_head = 0;
-// SemaphoreHandle_t write_head_semaphore;
-// SemaphoreHandle_t read_head_semaphore;
-SemaphoreHandle_t head_semaphore;
+QueueHandle_t flash_packet_queue;
 
 static void save_addr() {
     uint8_t res = w25qxx_sector_erase(0);
@@ -51,11 +48,8 @@ void flash_flight_init(void)
 
     addr = sub_addr = FLIGHT_LOG_START_ADDR;
 
-    // write_head_semaphore = xSemaphoreCreateMutex();
-    // read_head_semaphore = xSemaphoreCreateMutex();
-    head_semaphore = xSemaphoreCreateMutex();
-    write_head = 0;
-    read_head = RING_BUFFER_SIZE-1;
+    flash_packet_queue = xQueueCreate(RING_BUFFER_SIZE, sizeof(flash_packet));
+    assert(flash_packet_queue != NULL);
 }
 
 void flash_prepare_for_flight(void) {
@@ -102,6 +96,7 @@ void flash_dump_to_serial(void) {
         }
         if (all) break;
 
+        printf("%lu,", fp.n);
         printf("%"PRId64",", fp.timestamp);
         printf("%d,", fp.pyro_arm);
 
@@ -151,7 +146,7 @@ void flash_dump_to_serial(void) {
 }
 
 void flash_write_packet(flash_packet *packet) {
-    w25qxx_write(addr, packet, sizeof(flash_packet));
+    w25qxx_write(addr, (uint8_t*) packet, sizeof(flash_packet));
     addr += sizeof(flash_packet);
     sub_addr += sizeof(flash_packet);
     if (sub_addr >= SECTOR_SIZE) {
@@ -161,61 +156,27 @@ void flash_write_packet(flash_packet *packet) {
 }
 
 void flash_queue_packet(flash_packet *packet) {
-    while (1) {
-        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-            if (atomic_load(&write_head) != atomic_load(&read_head)) {
-                xSemaphoreGive(head_semaphore);
-                break;
-            }
-
-            xSemaphoreGive(head_semaphore);
-        }
-
-        // give time for the flash chip to write packets to flash
-        ets_delay_us(100);
-    }
-
-    memcpy(&ring_buffer[atomic_load(&write_head)], packet, sizeof(flash_packet));
-
-    // printf("HERE\n");
-    if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-        // printf("BEFORE: %lu\n", write_head);
-        // uint32_t value = atomic_load(&write_head);
-        atomic_store(&write_head, (atomic_load(&write_head) + 1) % RING_BUFFER_SIZE);
-        // printf("AFTER : %lu\n", write_head);
-
-        xSemaphoreGive(head_semaphore);
+    packet->n = n++;
+    while (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+        // vTaskDelay(pdMS_TO_TICKS(1)); 
+        printf("FLASH PACKET LOST");
     }
 }
 
 void flash_write_queue(int64_t max_time) {
-    int64_t start_time = esp_timer_get_time();
+    int64_t start = esp_timer_get_time();
+    flash_packet packet;
 
-    while (1) {
-        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-            uint32_t next = (atomic_load(&read_head) + 1) % RING_BUFFER_SIZE;
-            if (next == atomic_load(&write_head)) {
-                xSemaphoreGive(head_semaphore);
-                return;
-            }
+    static UBaseType_t max_count = 0;
+    UBaseType_t count = uxQueueMessagesWaiting(flash_packet_queue);
+    max_count = count > max_count ? count : max_count;
+    printf("ITEMS IN QUEUE: %u, %u\n", count, max_count);
 
-            xSemaphoreGive(head_semaphore);
+    while ((esp_timer_get_time() - start) < max_time) {
+        if (xQueueReceive(flash_packet_queue, &packet, 0) == pdTRUE) {
+            flash_write_packet(&packet);
+        } else {
+            break; // Queue is empty
         }
-
-        flash_write_packet(&ring_buffer[atomic_load(&read_head)]);
-
-        if (xSemaphoreTake(head_semaphore, pdMS_TO_TICKS(MUTEX_TIMEOUT))) {
-            // read_head = (read_head + 1) % RING_BUFFER_SIZE;
-            atomic_store(&read_head, (atomic_load(&read_head) + 1) % RING_BUFFER_SIZE);
-
-            xSemaphoreGive(head_semaphore);
-        }
-
-        int64_t delta = esp_timer_get_time() - start_time;
-        if (delta > max_time) break;
     }
-}
-
-void flash_debug() {
-    printf("FLASH: %lu, %lu\n", write_head, read_head);
 }
