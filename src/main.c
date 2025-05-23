@@ -109,6 +109,7 @@ void primary_task(void *pvParameters) {
 
             flash_packet fp = {esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             flash_queue_packet(&fp);
+            flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -116,9 +117,7 @@ void primary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < PRIMARY_LOOP_MAX_DT;
         if (under) {
-            portDISABLE_INTERRUPTS();
             ets_delay_us(PRIMARY_LOOP_MAX_DT-delta);
-            portENABLE_INTERRUPTS();
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
@@ -172,7 +171,7 @@ void secondary_task(void *pvParameters) {
         }
 
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
-            // flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
             flash_debug();
         }
 
@@ -181,9 +180,7 @@ void secondary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < SECONDARY_LOOP_MAX_DT;
         if (under) {
-            portDISABLE_INTERRUPTS();
             ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
-            portENABLE_INTERRUPTS();
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
@@ -224,10 +221,18 @@ void app_main(void) {
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
     // if (psu_get_power_source().source == POWER_SOURCE_USB_ONLY) {
-    //     flash_dump_to_serial();
+        flash_dump_to_serial();
     // } else {
-        xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+    //     flash_prepare_for_flight();
+
+    //     note(NOTE_G, 8, 300);
+    //     note(NOTE_G, 8, 300);
+    //     note(NOTE_G, 8, 300);
+
+    //     vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    //     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+    //     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
     // }
 
     // this main will not exit here even though it looks like it will.
@@ -298,7 +303,7 @@ void init_everything(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    gps_init();
+    GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     buzzer_init();
@@ -334,26 +339,10 @@ void beep_pyro_cont(void) {
 
 void turn_on_cameras(void) {
     pyro_activate(PYRO_CHANNEL_3,0,1); 
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(500 / portTICK_PERIOD_MS); 
 }
 
 void turn_on_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,0,1); 
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(500 / portTICK_PERIOD_MS); 
 }
 
 void fail(int n)
