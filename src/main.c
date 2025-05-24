@@ -131,51 +131,23 @@ void primary_task(void *pvParameters) {
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)5)
+#define SECONDARY_LOOP_FQ ((uint32_t)10)
 #define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
 void secondary_task(void *pvParameters) {
-    uint32_t cycle = 0;
-
-    lora_packet_t lora_packet;
+   uint32_t cycle = 0;
 
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/5) == 0) {
-            /*
-            uint32_t timestamp; (will be auto set by transmit function)
-            float latitude;
-            float longitude;
-            float barometric_agl;
-            uint32_t gps_altitude;
-            float barometric_velocity;
-            float acceleration;
-            uint8_t pyro_arm;
-            uint8_t flight_state;
-            double batt_voltage;
-            */
-            lora_packet.latitude = 0;
-            lora_packet.longitude = 0;
-            lora_packet.barometric_agl = 0;
-            lora_packet.gps_altitude = 0;
-            lora_packet.barometric_velocity = 0;
-            lora_packet.acceleration = 0;
-
-            int sum = 0;
-            sum += pyro_continuity(PYRO_CHANNEL_1);
-            sum += pyro_continuity(PYRO_CHANNEL_2)*2;
-            lora_packet.pyro_arm = sum;
-
-            lora_packet.batt_voltage = psu_read_battery_voltage();
-
-            lora_transmit_packet(&lora_packet);
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
+            // goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, flight_state);
+            goober_payload_t telemetry_empty = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            slave_lora_task(&telemetry_empty);
         }
 
-        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) != 0) {
-        // if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/5) == 0) {
-            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
+            // flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+            // flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -183,7 +155,9 @@ void secondary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < SECONDARY_LOOP_MAX_DT;
         if (under) {
+            // portDISABLE_INTERRUPTS();
             ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
+            // portENABLE_INTERRUPTS();
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
@@ -214,7 +188,7 @@ void app_main(void) {
 
     boot_sound();
 
-    if (should_dump_data()) {
+    if (false) {
         flash_dump_to_serial();
     } else {
         turn_on_cameras();
