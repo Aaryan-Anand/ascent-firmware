@@ -76,10 +76,22 @@ TaskHandle_t primary_task_handle;
 void primary_task(void *pvParameters) {
     uint32_t cycle = 0;
 
+    int32_t lon;
+    int32_t lat;
+    int32_t gps_altitude;
+    int32_t hMSL;
+    uint8_t fixType;
+    uint8_t numSV;  
+
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
         uint8_t pyro_arm = 0;
+
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
+            uint32_t UTCtstamp;
+            GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+        }
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
 
@@ -161,17 +173,6 @@ void primary_task(void *pvParameters) {
             //flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             //flash_queue_packet(&fp);
             
-        }
-
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
-                        uint32_t UTCtstamp;
-            int32_t lon;
-            int32_t lat;
-            int32_t gps_altitude;
-            int32_t hMSL;
-            uint8_t fixType;
-            uint8_t numSV;  
-            GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
         }
 
         int64_t end_time = esp_timer_get_time();
