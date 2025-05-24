@@ -188,6 +188,8 @@ void app_main(void) {
 
     boot_sound();
 
+    // w25qxx_chip_erase();
+
     if (false) {
         flash_dump_to_serial();
     } else {

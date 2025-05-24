@@ -253,23 +253,30 @@ void slave_lora_task(goober_payload_t *telemetry)
     uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 
     bool waiting = true;
+    TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
+
+    lora_receive(); // put into receive mode
+
+    printf("Waiting for packet\n");
 
     while(waiting) {
-		printf("waiting!\n");
-        lora_receive(); // put into receive mode
-        if(lora_received() != 0) {
-            int rxLen = lora_receive_packet(buf, sizeof(buf));
-            printf("Received packet: ");
-            for(int i = 0; i < rxLen; i++) {
-                printf("%02X ", buf[i]);
-            }
-            printf("\n");
-            lora_process(buf, rxLen, *telemetry);
-
-			waiting = false;
-
+        // Check for timeout (90ms)
+        if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(90)) {
+            printf("Timeout waiting for packet\n");
+            waiting = false; // Exit the loop after timeout
         } else {
-            bool waste;
+            if(lora_received() != 0) {
+                waiting = false;
+                int rxLen = lora_receive_packet(buf, sizeof(buf));
+                printf("Received packet: ");
+                for(int i = 0; i < rxLen; i++) {
+                    printf("%02X ", buf[i]);
+                }
+                printf("\n");
+                lora_process(buf, rxLen, *telemetry);
+            } else {
+                vTaskDelay(1);
+            }
         }
     }
 }
