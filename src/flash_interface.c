@@ -71,7 +71,7 @@ void flash_prepare_for_flight(void) {
     // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
 
     for (int i = 0; i < n; i++) {
-        printf("Erasing %d\n", i);
+        printf("Erasing %d/%ld\n", i, n);
         res = w25qxx_sector_erase(i*4096);
         if (res) fail(FAIL_FLASH_CHIP_ERASE);
     }
@@ -91,7 +91,7 @@ void flash_dump_to_serial(void) {
     printf("Addr: %ld, used: %ld\n", addr, n);
     addr = FLIGHT_LOG_START_ADDR;
     while (1) {
-        w25qxx_read(addr, &fp, sizeof(flash_packet));
+        w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
 
         bool all = true;
