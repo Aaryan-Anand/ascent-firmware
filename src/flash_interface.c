@@ -39,6 +39,11 @@ static void recall_addr() {
     w25qxx_read(0, (uint8_t*)&addr, 4);
 }
 
+uint32_t flash_get_addr() {
+    recall_addr();
+    return addr;
+}
+
 void flash_flight_init(void)
 {
     uint8_t res;

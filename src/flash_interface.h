@@ -31,6 +31,8 @@ typedef struct {
     float ekf_roll;
 } flash_packet;
 
+uint32_t flash_get_addr();
+
 void flash_flight_init(void);
 
 void flash_prepare_for_flight(void);
