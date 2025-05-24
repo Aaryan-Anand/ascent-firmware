@@ -123,6 +123,8 @@ void bno_flight_init(){
     );
 
     bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);  //Normal power, 1kHz ODR, 16G range
+    bno_config_mag(NORMAL,MAG_C_REGULAR,MAG_C_H30);
+    bno_configure_gyro(GYRO_C_D2000,GYRO_C_H116,GYRO_C_NORMAL);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_set_acc_amthres(10);
     vTaskDelay(10 / portTICK_PERIOD_MS);

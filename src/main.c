@@ -60,14 +60,8 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
     *ekf_roll = 0.0f;
 }
 
-void fake_gps(float *lat, float *lng, uint32_t *alt) {
-    *lat = 0.0f;
-    *lng = 0.0f;
-    *alt = 0.0f;
-}
-
 TaskHandle_t primary_task_handle;
-#define PRIMARY_LOOP_FQ ((uint32_t)30)
+#define PRIMARY_LOOP_FQ ((uint32_t)100)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
 void primary_task(void *pvParameters) {
     uint32_t cycle = 0;
@@ -75,12 +69,28 @@ void primary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        int sum = 0;
-        sum += pyro_continuity(PYRO_CHANNEL_1);
-        sum += pyro_continuity(PYRO_CHANNEL_2)*2;
-        uint8_t pyro_arm = sum;
+        uint8_t pyro_arm = 0;
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
+        if (pyro_continuity(PYRO_CHANNEL_1)) {
+            pyro_arm |= (1);
+        }
+        if (pyro_continuity(PYRO_CHANNEL_2)) {
+            pyro_arm |= (1 << 1);
+        }
+        if (pyro_continuity(PYRO_CHANNEL_3)) {
+            pyro_arm |= (1 << 2);
+        }
+        if (pyro_continuity(PYRO_CHANNEL_4)) {
+            pyro_arm |= (1 << 3);
+        }
+
+        static bool live_video_active; // move somewhere else.
+        
+        if (live_video_active) {
+            pyro_arm |= (1 <<4);
+        }
+
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/100) == 0) {
             imu_raw_3d_t acc, gyr, mag;
             imu_float_3d_t high_g_acc;
             bno055_get_local(&acc, &gyr, &mag, false);
@@ -94,11 +104,6 @@ void primary_task(void *pvParameters) {
             float average_barometric_velocity;
             baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
-            float latitude;
-            float longitude;
-            uint32_t gps_altitude;
-            fake_gps(&latitude, &longitude, &gps_altitude);
-
             float ekf_latitude;
             float ekf_longitude;
             float ekf_altitude;
@@ -107,8 +112,19 @@ void primary_task(void *pvParameters) {
             float ekf_roll;
             fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
 
-            flash_packet fp = {esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
-            flash_queue_packet(&fp);
+            // flash_packet fp = {esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
+            // flash_queue_packet(&fp);
+        }
+
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/15) == 0) {
+            uint32_t UTCtimestamp;
+            int32_t lon, lat, gps_altitude, hMSL;
+            uint8_t fixType, numSV;
+            // printf("Starting GPS read!\n");
+
+            GPS_read(&UTCtimestamp,&lon,&lat,&gps_altitude,&hMSL,&fixType,&numSV);
+
+            // printf("GPS Data: Latitude: %ld, Longitude: %ld, Altitude: %ld, Fix Type: %u, Num SV: %u\n", lat, lon, gps_altitude, fixType, numSV);
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -116,13 +132,12 @@ void primary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < PRIMARY_LOOP_MAX_DT;
         if (under) {
-            portDISABLE_INTERRUPTS();
+            // printf("Delaying for %" PRId64 "us to maintain PRIMARY_LOOP_MAX_DT\n", PRIMARY_LOOP_MAX_DT-delta);
             ets_delay_us(PRIMARY_LOOP_MAX_DT-delta);
-            portENABLE_INTERRUPTS();
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -131,49 +146,23 @@ void primary_task(void *pvParameters) {
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)15)
+#define SECONDARY_LOOP_FQ ((uint32_t)10)
 #define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
 void secondary_task(void *pvParameters) {
     uint32_t cycle = 0;
 
-    lora_packet_t lora_packet;
-
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
-            /*
-            uint32_t timestamp; (will be auto set by transmit function)
-            float latitude;
-            float longitude;
-            float barometric_agl;
-            uint32_t gps_altitude;
-            float barometric_velocity;
-            float acceleration;
-            uint8_t pyro_arm;
-            uint8_t flight_state;
-            double batt_voltage;
-            */
-            lora_packet.latitude = 0;
-            lora_packet.longitude = 0;
-            lora_packet.barometric_agl = 0;
-            lora_packet.gps_altitude = 0;
-            lora_packet.barometric_velocity = 0;
-            lora_packet.acceleration = 0;
-
-            int sum = 0;
-            sum += pyro_continuity(PYRO_CHANNEL_1);
-            sum += pyro_continuity(PYRO_CHANNEL_2)*2;
-            lora_packet.pyro_arm = sum;
-
-            lora_packet.batt_voltage = psu_read_battery_voltage();
-
-            lora_transmit_packet(&lora_packet);
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
+            // goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, flight_state);
+            goober_payload_t telemetry_empty = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            slave_lora_task(telemetry_empty);
         }
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/15) == 0) {
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
             // flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
-            flash_debug();
+            // flash_debug();
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -181,13 +170,13 @@ void secondary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < SECONDARY_LOOP_MAX_DT;
         if (under) {
-            portDISABLE_INTERRUPTS();
+            // portDISABLE_INTERRUPTS();
             ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
-            portENABLE_INTERRUPTS();
+            // portENABLE_INTERRUPTS();
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        // printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -212,13 +201,13 @@ void app_main(void) {
 
     init_everything();
 
-    boot_sound();
+    // boot_sound();
 
-    turn_on_cameras();
+    // turn_on_cameras();
     // turn_on_fan();
 
     // Ready to go
-    beep_pyro_cont();
+    // beep_pyro_cont();
 
     // TaskHandle_t megolavania_task_handle;
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
@@ -298,10 +287,10 @@ void init_everything(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    gps_init();
+    buzzer_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    buzzer_init();
+    GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_flight_init();
@@ -333,15 +322,7 @@ void beep_pyro_cont(void) {
 }
 
 void turn_on_cameras(void) {
-    pyro_activate(PYRO_CHANNEL_3,0,1); 
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_G, 5, 100);
-    vTaskDelay(60 / portTICK_PERIOD_MS);
-    note(NOTE_A, 3, 50);
-    vTaskDelay(500 / portTICK_PERIOD_MS); 
+    pyro_activate(PYRO_CHANNEL_3,0,1);
 }
 
 void turn_on_fan(void) {

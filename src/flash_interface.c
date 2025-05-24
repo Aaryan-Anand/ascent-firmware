@@ -91,7 +91,7 @@ void flash_dump_to_serial(void) {
     printf("Addr: %ld, used: %ld\n", addr, n);
     addr = FLIGHT_LOG_START_ADDR;
     while (1) {
-        w25qxx_read(addr, &fp, sizeof(flash_packet));
+        // w25qxx_read(addr, &fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
 
         bool all = true;
@@ -150,7 +150,7 @@ void flash_dump_to_serial(void) {
 }
 
 void flash_write_packet(flash_packet *packet) {
-    w25qxx_write(addr, packet, sizeof(flash_packet));
+    // w25qxx_write(addr, packet, sizeof(flash_packet));
     addr += sizeof(flash_packet);
     sub_addr += sizeof(flash_packet);
     if (sub_addr >= SECTOR_SIZE) {
@@ -206,5 +206,5 @@ void flash_write_queue(int64_t max_time) {
 }
 
 void flash_debug() {
-    printf("FLASH: %lu, %lu\n", write_head, read_head);
+    // printf("FLASH: %lu, %lu\n", write_head, read_head);
 }
