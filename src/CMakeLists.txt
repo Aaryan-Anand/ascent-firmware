@@ -8,4 +8,5 @@ idf_component_register(
         "flash_interface.c"
         "baro.c"
         "flight.c"
+        "sensor_fusion.c"
 )

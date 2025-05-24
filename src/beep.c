@@ -38,6 +38,14 @@ void error_beep(void) {
     vTaskDelay(pdMS_TO_TICKS(25));
 }
 
+void wait_beep(void) {
+    note(NOTE_C, OCTAVE_5, 100);
+    vTaskDelay(pdMS_TO_TICKS(75));
+    note(NOTE_G, OCTAVE_4, 100);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+}
+
 // Helper function to play a note for a given duration factor (duration = factor * quarter note).
 static void play_tone(note_t n, octave_t o, float factor) {
     // Calculate the note duration in milliseconds

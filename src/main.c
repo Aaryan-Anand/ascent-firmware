@@ -47,6 +47,13 @@ static tNeopixelContext neopixel;
 #include "baro.h"
 #include "flight.h"
 
+#include "sensor_fusion.h"
+
+// Add global origin vectors
+static origin_vector_t origin_vectors = {0};
+static direction_cosine_t current_zenith = {0};
+static bool origin_set = false;
+
 void validate_esp32(void);
 void init_boot_sequence(void);
 void beep_pyro_cont(void);
@@ -63,10 +70,11 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
     *ekf_roll = 0.0f;
 }
 
-void fake_gps(float *lat, float *lng, uint32_t *alt) {
+void fake_gps(float *lat, float *lng, uint32_t *alt, uint8_t *num_sat) {
     *lat = 0.0f;
     *lng = 0.0f;
     *alt = 0.0f;
+    *num_sat = 0;
 }
 
 TaskHandle_t primary_task_handle;
@@ -89,6 +97,39 @@ void primary_task(void *pvParameters) {
             bno055_get_local(&acc, &gyr, &mag, false);
             h3lis331dl_get_local(&high_g_acc, false);
 
+            // Get and print raw BNO data
+            imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
+            if (bno055_get_raw(&raw_acc, &raw_gyr, &raw_mag) == ESP_OK) {
+                printf("Raw BNO: [%d \t %d \t %d \t %d \t %d \t %d \t %d \t %d \t %d]\n",
+                       raw_acc.x, raw_acc.y, raw_acc.z,
+                       raw_gyr.x, raw_gyr.y, raw_gyr.z,
+                       raw_mag.x, raw_mag.y, raw_mag.z);
+            }
+
+            // Only calculate zenith if origin is set
+            if (origin_set) {
+                // Calculate current magnetic direction cosine
+                double mag_magnitude = sqrt((double)(mag.x * mag.x + mag.y * mag.y + mag.z * mag.z));
+                direction_cosine_t current_mag = {
+                    .x = (double)mag.x / mag_magnitude,
+                    .y = (double)mag.y / mag_magnitude,
+                    .z = (double)mag.z / mag_magnitude
+                };
+
+                // Estimate current zenith direction
+                estimate_zenith_from_mag(
+                    &origin_vectors.magnetic_vector,
+                    &current_mag,
+                    &origin_vectors.gravity_vector,
+                    &current_zenith
+                );
+
+                //printf("Current zenith: [%.3f \t %.3f \t %.3f]\n",
+                //       current_zenith.x, current_zenith.y, current_zenith.z);
+                //printf("Current zenith: [%.2d \t %.2d \t %.2d \t %.2d \t %.2d \t %.2d \t %.2d \t %.2d \t %.2d]\n",
+                //       acc.x, acc.y, acc.z, gyr.x, gyr.y, gyr.z, mag.x, mag.y, mag.z);
+            }
+
             baro_double_t baro;
             bmp390_get_local(&baro);
 
@@ -100,7 +141,8 @@ void primary_task(void *pvParameters) {
             float latitude;
             float longitude;
             uint32_t gps_altitude;
-            fake_gps(&latitude, &longitude, &gps_altitude);
+            uint8_t num_sat;
+            fake_gps(&latitude, &longitude, &gps_altitude, &num_sat);
 
             float ekf_latitude;
             float ekf_longitude;
@@ -112,8 +154,10 @@ void primary_task(void *pvParameters) {
 
             flight_update(ekf_altitude, 0, 0, barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
-            flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
-            flash_queue_packet(&fp);
+            //Temporarily disable flash writing
+            //flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
+            //flash_queue_packet(&fp);
+            
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -125,7 +169,7 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        //printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -203,14 +247,14 @@ void app_main(void) {
         flash_prepare_for_flight();
         flash_erase_jingle();
 
-        beep_pyro_cont();
+        //beep_pyro_cont();
         // TaskHandle_t megolavania_task_handle;
         // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
 
         xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+        //xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
     }
 
     // this main will not exit here even though it looks like it will.
@@ -298,6 +342,15 @@ void init_boot_sequence(void) {
 
     flash_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    // Set origin vectors during boot sequence
+    printf("Setting origin vectors...\n");
+    if (set_origin_state_vectors(&origin_vectors)) {
+        origin_set = true;
+        printf("Origin vectors set successfully\n");
+    } else {
+        printf("Warning: Failed to set origin vectors\n");
+    }
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);
