@@ -53,15 +53,11 @@ extern imu_float_3d_t high_g_acc;
 
 extern void baro_task(void);  // Add this near the top with other declarations
 
-void imu_task_init()
-{
-    bno055_init(I2C_MASTER_PORT);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+extern void ascent_beep(void);
+extern void high_beep(void);
+extern void low_beep(void);
+extern void error_beep(void);
 
-    bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);
-    bno_setoprmode(CONFIG);
-    bno_setoprmode(AMG);
-}
 
 void baro_task_init()
 {
@@ -71,11 +67,16 @@ void baro_task_init()
     update_ground_pressure();
 }
 
-void init_general()
+void init_indicators()
 {
     neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
+
+    buzzer_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    ascent_beep();
 
     fflush(stdout);
 
@@ -86,9 +87,9 @@ void init_general()
     // }
 }
 
-void init_everything()
+void init_boot_sequence()
 {
-    init_general();
+    init_indicators();
     
     i2c_init();
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -190,13 +191,7 @@ static bool deploy_drogues()
         }
     }
 
-
-
-#ifdef LED_PYRO
-    return true;
-#else
     return false;
-#endif
 }
 
 static bool deploy_mains()
@@ -213,11 +208,7 @@ static bool deploy_mains()
         }
     }
 
-#ifdef LED_PYRO
-    return true;
-#else
     return false;
-#endif
 }
 
 static void flight_coasting()
@@ -342,15 +333,15 @@ uint32_t addr = 4096;
 
 void save_addr() {
     uint8_t res = w25qxx_sector_erase(0);
-    res = w25qxx_write(0, &addr, 4);
+    res = w25qxx_write(0, (uint8_t*)&addr, 4);
     printf("Saving %ld rs: %d\n", addr, res);
     uint32_t read;
-    res = w25qxx_read(0, &read, 4);
+    res = w25qxx_read(0, (uint8_t*)&read, 4);
     printf("Read back %ld res: %d\n\n", read, res);
 }
 
 void recall_addr() {
-    w25qxx_read(0, &addr, 4);
+    w25qxx_read(0, (uint8_t*)&addr, 4);
 }
 
 // void app_main_loop(void* params) {
@@ -365,12 +356,12 @@ void app_main(void) {
 
     printf("size of flash packet: %u\n", sizeof(flash_packet));
 
-    validate_esp32();
+    //validate_esp32();
 
     esp_wifi_stop();
     esp_wifi_deinit();
 
-    init_everything();
+    init_boot_sequence();
 
     // gpio_set_direction(FLASH_CS, GPIO_MODE_OUTPUT);
     // gpio_set_level(FLASH_CS, 1);
@@ -416,7 +407,7 @@ void app_main(void) {
         printf("Addr: %ld, used: %ld\n", addr, n);
         addr = 4096;
         while (1) {
-            w25qxx_read(addr, &fp, sizeof(flash_packet));
+            w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
             addr += sizeof(flash_packet);
 
             bool all = true;
@@ -498,11 +489,6 @@ void app_main(void) {
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     // }
 
-#ifdef LED_PYRO
-    pyro_activate(PYRO_CHANNEL_1, 150, 0);
-    pyro_activate(PYRO_CHANNEL_2, 150, 0);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-#endif
 
 #ifdef LIVE_VIDEO_PYRO_3
     pyro_activate(PYRO_CHANNEL_3,0,1);
@@ -639,7 +625,7 @@ void app_main(void) {
                 fp.pyro_arm = pyro_arm;
                 fp.flight_state = flight_state;
 
-                w25qxx_write(addr, &fp, sizeof(flash_packet));
+                w25qxx_write(addr, (uint8_t*)&fp, sizeof(flash_packet));
                 addr += sizeof(flash_packet);
                 sub_addr += sizeof(flash_packet);
                 if (sub_addr >= 4096) {
