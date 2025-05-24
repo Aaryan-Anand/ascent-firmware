@@ -48,7 +48,7 @@ static tNeopixelContext neopixel;
 #include "flight.h"
 
 void validate_esp32(void);
-void init_everything(void);
+void init_boot_sequence(void);
 void beep_pyro_cont(void);
 void turn_on_cameras(void);
 void turn_on_fan(void);
@@ -184,10 +184,10 @@ void app_main(void) {
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
-    validate_esp32();
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+    // validate_esp32();
+    // vTaskDelay(100 / portTICK_PERIOD_MS);        THIS IS NOT REQUIRED ANYMORE
 
-    init_everything();
+    init_boot_sequence();
 
     ascent_beep();
 
@@ -198,12 +198,12 @@ void app_main(void) {
     } else {
         turn_on_cameras();
         // turn_on_fan();
-
-        beep_pyro_cont();
+        error_beep();
 
         flash_prepare_for_flight();
         flash_erase_jingle();
 
+        beep_pyro_cont();
         // TaskHandle_t megolavania_task_handle;
         // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
@@ -258,7 +258,7 @@ void validate_esp32(void) {
     printf("==============================\n\n");
 }
 
-void init_everything(void) {
+void init_boot_sequence(void) {
     // NeoPixel
     neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
@@ -300,15 +300,14 @@ void init_everything(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-    note(NOTE_G, 8, 300);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 4; j++) {
-            if (pyro_continuity(j+1)) note(NOTE_E, 8, 300);
-            else note(NOTE_G, 5, 300);
+            if (pyro_continuity(j+1)) high_beep();
+            else low_beep();
             vTaskDelay(500 / portTICK_PERIOD_MS);
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
