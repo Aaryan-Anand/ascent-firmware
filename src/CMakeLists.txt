@@ -7,4 +7,5 @@ idf_component_register(
         "lora_interface.c"
         "flash_interface.c"
         "baro.c"
+        "flight.c"
 )
