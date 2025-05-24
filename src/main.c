@@ -45,6 +45,7 @@ static tNeopixelContext neopixel;
 #include "lora_interface.h"
 #include "flash_interface.h"
 #include "baro.h"
+#include "flight.h"
 
 void validate_esp32(void);
 void init_everything(void);
@@ -108,6 +109,8 @@ void primary_task(void *pvParameters) {
             float ekf_yaw;
             float ekf_roll;
             fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
+
+            flight_update(ekf_altitude, 0, 0, barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
             flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             flash_queue_packet(&fp);
