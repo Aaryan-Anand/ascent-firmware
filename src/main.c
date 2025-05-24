@@ -12,6 +12,7 @@
 #include "esp_task_wdt.h"
 #include <inttypes.h>
 #include <rom/ets_sys.h>
+#include "driver/uart.h"
 #include "math.h"
 
 #include "neopixel.h"
@@ -213,7 +214,7 @@ void app_main(void) {
 
     boot_sound();
 
-    if (psu_get_power_source().source == POWER_SOURCE_USB_ONLY) {
+    if (should_dump_data()) {
         flash_dump_to_serial();
     } else {
         turn_on_cameras();
