@@ -70,13 +70,6 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
     *ekf_roll = 0.0f;
 }
 
-void fake_gps(float *lat, float *lng, uint32_t *alt, uint8_t *num_sat) {
-    *lat = 0.0f;
-    *lng = 0.0f;
-    *alt = 0.0f;
-    *num_sat = 0;
-}
-
 TaskHandle_t primary_task_handle;
 #define PRIMARY_LOOP_FQ ((uint32_t)30)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
@@ -86,12 +79,23 @@ void primary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        int sum = 0;
-        sum += pyro_continuity(PYRO_CHANNEL_1);
-        sum += pyro_continuity(PYRO_CHANNEL_2)*2;
-        uint8_t pyro_arm = sum;
+        uint8_t pyro_arm = 0;
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
+
+            if (pyro_continuity(PYRO_CHANNEL_1)) {
+                pyro_arm |= (1);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_2)) {
+                pyro_arm |= (1 << 1);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_3)) {
+                pyro_arm |= (1 << 2);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_4)) {
+                pyro_arm |= (1 << 3);
+            }
+
             imu_raw_3d_t acc, gyr, mag;
             imu_float_3d_t high_g_acc;
             bno055_get_local(&acc, &gyr, &mag, false);
@@ -100,10 +104,10 @@ void primary_task(void *pvParameters) {
             // Get and print raw BNO data
             imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
             if (bno055_get_raw(&raw_acc, &raw_gyr, &raw_mag) == ESP_OK) {
-                printf("Raw BNO: [%d \t %d \t %d \t %d \t %d \t %d \t %d \t %d \t %d]\n",
-                       raw_acc.x, raw_acc.y, raw_acc.z,
-                       raw_gyr.x, raw_gyr.y, raw_gyr.z,
-                       raw_mag.x, raw_mag.y, raw_mag.z);
+                // printf("Raw BNO: [%d \t %d \t %d \t %d \t %d \t %d \t %d \t %d \t %d]\n",
+                //        raw_acc.x, raw_acc.y, raw_acc.z,
+                //        raw_gyr.x, raw_gyr.y, raw_gyr.z,
+                //        raw_mag.x, raw_mag.y, raw_mag.z);
             }
 
             // Only calculate zenith if origin is set
@@ -138,11 +142,6 @@ void primary_task(void *pvParameters) {
             float average_barometric_velocity;
             baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
-            float latitude;
-            float longitude;
-            uint32_t gps_altitude;
-            uint8_t num_sat;
-            fake_gps(&latitude, &longitude, &gps_altitude, &num_sat);
 
             float ekf_latitude;
             float ekf_longitude;
@@ -154,10 +153,25 @@ void primary_task(void *pvParameters) {
 
             flight_update(ekf_altitude, 0, 0, barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
+            // sending of telemetry packet to queue
+            uint8_t current_flight_state = get_flight_state();
+            // goober_payload_t telemetry = create_telemetry_payload(ekf_latitude, ekf_longitude, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
+
             //Temporarily disable flash writing
             //flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             //flash_queue_packet(&fp);
             
+        }
+
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
+                        uint32_t UTCtstamp;
+            int32_t lon;
+            int32_t lat;
+            int32_t gps_altitude;
+            int32_t hMSL;
+            uint8_t fixType;
+            uint8_t numSV;  
+            GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -169,7 +183,7 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        //printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -187,7 +201,6 @@ void secondary_task(void *pvParameters) {
         int64_t start_time = esp_timer_get_time();
 
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
-            // goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, flight_state);
             goober_payload_t telemetry_empty = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             slave_lora_task(&telemetry_empty);
         }
@@ -240,7 +253,6 @@ void app_main(void) {
     if (false) {
         flash_dump_to_serial();
     } else {
-        turn_on_cameras();
         // turn_on_fan();
         error_beep();
 
@@ -254,7 +266,7 @@ void app_main(void) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
 
         xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-        //xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
     }
 
     // this main will not exit here even though it looks like it will.
@@ -365,14 +377,6 @@ void beep_pyro_cont(void) {
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
-}
-
-void turn_on_cameras(void) {
-    pyro_activate(PYRO_CHANNEL_3,0,1); 
-}
-
-void turn_on_fan(void) {
-    pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
 
 void fail(int n)
