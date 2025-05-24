@@ -146,7 +146,7 @@ void secondary_task(void *pvParameters) {
         }
 
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
-            // flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
             // flash_debug();
         }
 

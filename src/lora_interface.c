@@ -50,10 +50,10 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 {
 	goober_payload_t payload;
 
-	printf("Creating telemetry payload\n");
+	// printf("Creating telemetry payload\n");
 
     payload.telemetry.timestamp = esp_timer_get_time();
-	printf("timestamp: %lld\n", payload.telemetry.timestamp);
+	// printf("timestamp: %lld\n", payload.telemetry.timestamp);
     payload.telemetry.latitude = latitude;
     payload.telemetry.longitude = longitude;
     payload.telemetry.altitude_agl = altitude_agl;
@@ -262,7 +262,7 @@ void slave_lora_task(goober_payload_t *telemetry)
     while(waiting) {
         // Check for timeout (90ms)
         if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(90)) {
-            printf("Timeout waiting for packet\n");
+            // printf("Timeout waiting for packet\n");
             waiting = false; // Exit the loop after timeout
         } else {
             if(lora_received() != 0) {
