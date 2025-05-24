@@ -50,7 +50,10 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 {
 	goober_payload_t payload;
 
-    payload.telemetry.timestamp = esp_timer_get_time() / 1e3;
+	printf("Creating telemetry payload\n");
+
+    payload.telemetry.timestamp = esp_timer_get_time();
+	printf("timestamp: %lld\n", payload.telemetry.timestamp);
     payload.telemetry.latitude = latitude;
     payload.telemetry.longitude = longitude;
     payload.telemetry.altitude_agl = altitude_agl;
@@ -245,7 +248,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 	}
 }
 
-void slave_lora_task(goober_payload_t telemetry)
+void slave_lora_task(goober_payload_t *telemetry)
 {
     uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 
@@ -261,10 +264,12 @@ void slave_lora_task(goober_payload_t telemetry)
                 printf("%02X ", buf[i]);
             }
             printf("\n");
-            lora_process(buf, rxLen, telemetry);
+            lora_process(buf, rxLen, *telemetry);
+
+			waiting = false;
 
         } else {
-            vTaskDelay(1);
+            bool waste;
         }
     }
 }

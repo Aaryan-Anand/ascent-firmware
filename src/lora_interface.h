@@ -91,6 +91,6 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 
 void lora_transmit_packet(goober_t *packet);
 
-void slave_lora_task();
+void slave_lora_task(goober_payload_t *telemetry);
 
 #endif
