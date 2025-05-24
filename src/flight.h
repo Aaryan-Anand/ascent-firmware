@@ -1,6 +1,8 @@
 #ifndef FLIGHT_H
 #define FLIGHT_H
 
+#include <stdint.h>
+
 enum FlightState
 {
     FS_ON_PAD = 0,
@@ -23,5 +25,7 @@ void flight_update(
     float average_barometric_velocity,
     float raw_vertical_acl
 );
+
+uint8_t get_flight_state(void);
 
 #endif

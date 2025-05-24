@@ -18,8 +18,6 @@
 #define DEG_TO_RAD_FACTOR (PI / 180.0)
 #define RAD_TO_DEG_FACTOR (180.0 / PI)
 
-extern void fake_gps(float *lat, float *lon, uint32_t *alt, uint8_t *num_sat);
-
 double deg_to_rad(double deg) {
     return deg * DEG_TO_RAD_FACTOR;
 }
@@ -88,7 +86,7 @@ bool set_origin_state_vectors(origin_vector_t* origin) {
     uint8_t wait_count = 0;
     while (num_sat < 6) {
         error_beep();
-        fake_gps(&lat, &lon, &gps_alt, &num_sat);
+        // GPS_read(NULL,NULL,NULL,NULL,NULL,NULL,NULL); // AARYAN MAKE THIS PULL FROM POINTERS IN MAIN LOOP PLEASE - abdul
         wait_count++;
         vTaskDelay(pdMS_TO_TICKS(1000));
         if (wait_count > 1) {

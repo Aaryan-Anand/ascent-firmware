@@ -89,3 +89,7 @@ void flight_update(
         default: break;
     }
 }
+
+uint8_t get_flight_state(void) {
+    return flight_state;
+}
