@@ -189,7 +189,7 @@ void app_main(void) {
 
     init_everything();
 
-    boot_sound();
+    ascent_beep();
 
     // w25qxx_chip_erase();
 
