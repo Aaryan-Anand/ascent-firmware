@@ -288,13 +288,9 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 void slave_lora_task(goober_payload_t *telemetry)
 {
-	TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
-    
 	uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 	TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
     
-	uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
-
 	if (!TXLOCK) {
 		bool waiting = true;
 

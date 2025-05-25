@@ -235,18 +235,18 @@ void update_age(imu_raw_3d_t acc,imu_raw_3d_t gyr, imu_raw_3d_t mag, imu_float_3
     uint32_t gps_alt1;
     uint16_t sat1;
 
-    if(acc.x == acc1.x && acc.y == acc1.y && acc.z == acc1.z){age->acc_age = age.acc_age + 1;}
-    else{age->acc_age = 0;}
-    if(gyr.x == gyr1.x && gyr.y == gyr1.y && gyr.z == gyr1.z){age->gyr_age = age.gyr_age + 1;}
-    else{age->gyr_age = 0;}
-    if(mag.x == mag1.x && mag.y == mag1.y && mag.z == mag1.z){age->mag_age = age.mag_age + 1;}
-    else{age->mag_age = 0;}
-    if(hgacc.x == hgacc1.x && hgacc.y == hgacc1.y && hgacc.z == hgacc1.z){age->hgacc_age = age.hgacc_age + 1;}
-    else{age->hgacc_age = 0;}
-    if(baro.alt == baro1.alt){age->baro_age = age.baro_age + 1;}
-    else{age->baro_age = 0;}
-    if(lat == lat1 && lon == lon1 && gps_alt == gps_alt1 && sat == sat1){age->gps_age = age.gps_age + 1;}
-    else{age->gps_age = 0;}   
+    // if(acc.x == acc1.x && acc.y == acc1.y && acc.z == acc1.z){age->acc_age = age.acc_age + 1;}
+    // else{age->acc_age = 0;}
+    // if(gyr.x == gyr1.x && gyr.y == gyr1.y && gyr.z == gyr1.z){age->gyr_age = age.gyr_age + 1;}
+    // else{age->gyr_age = 0;}
+    // if(mag.x == mag1.x && mag.y == mag1.y && mag.z == mag1.z){age->mag_age = age.mag_age + 1;}
+    // else{age->mag_age = 0;}
+    // if(hgacc.x == hgacc1.x && hgacc.y == hgacc1.y && hgacc.z == hgacc1.z){age->hgacc_age = age.hgacc_age + 1;}
+    // else{age->hgacc_age = 0;}
+    // if(baro.alt == baro1.alt){age->baro_age = age.baro_age + 1;}
+    // else{age->baro_age = 0;}
+    // if(lat == lat1 && lon == lon1 && gps_alt == gps_alt1 && sat == sat1){age->gps_age = age.gps_age + 1;}
+    // else{age->gps_age = 0;}   
 }
 
 void estimate_orientation(
