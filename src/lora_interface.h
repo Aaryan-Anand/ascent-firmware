@@ -31,7 +31,9 @@ typedef enum {
     MSG_TYPE_REQ_AUX_ACTIVATE = 0x0A,
     MSG_TYPE_REQ_AUX_DEACTIVATE = 0x0B,
     MSG_TYPE_REQ_TXLOCK_ACTIVATE = 0x14,
-    MSG_TYPE_REQ_REBOOT = 0x1E
+    MSG_TYPE_REQ_REBOOT = 0x1E,
+    MSG_TYPE_REQ_POP_APOGEE = 0x69,
+    MSG_TYPE_REQ_POP_MAINS = 0x6A
 } goober_msg_type_t;
 
 typedef struct {
