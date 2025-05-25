@@ -9,13 +9,32 @@
 #include "string.h"
 #include "driver_psu.h"
 #include "driver_pyro.h"
-
+#include "esp_random.h"
 #include "lora_interface.h"
 
 #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
 #define TELEM_PACKET_SIZE 51
 #define LOCATOR_PACKET_SIZE 16
+
+static bool TXLOCK = false;
+static bool CAMERA_ACTIVE = false;
+
+QueueHandle_t lora_packet_queue;
+
+void turn_on_cameras(void) {
+    pyro_activate(PYRO_CHANNEL_3,0,1); 
+    CAMERA_ACTIVE = true;
+}
+
+void turn_off_cameras(void) {
+    pyro_activate(PYRO_CHANNEL_3,1,1); 
+    CAMERA_ACTIVE = false;
+}
+
+void turn_on_fan(void) {
+    pyro_activate(PYRO_CHANNEL_4,0,1); 
+}
 
 void lora_flight_init()
 {
@@ -44,6 +63,17 @@ void lora_flight_init()
 	printf("spreading_factor=%d", sf);
 
 	lora_set_tx_power(17);
+
+	lora_packet_queue = xQueueCreate(1, 51);
+	assert(lora_packet_queue != NULL);
+}
+
+void lora_queue_packet(goober_payload_t *payload) {
+	xQueueOverwrite(lora_packet_queue, payload);
+}
+
+void lora_read_latest_queue_packet(goober_payload_t *payload) {
+	xQueueReceive(lora_packet_queue, payload, portMAX_DELAY);
 }
 
 goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, float altitude_agl, float vertical_velocity, float x_acc, float eul_x, float eul_y, float eul_z, float gyr_x, uint8_t sats, uint8_t flight_state)
@@ -79,17 +109,15 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 		pyro_arm |= (1 << 3);
 	}
 
-	static bool live_video_active; // move somewhere else.
-	
-	if (live_video_active) {
-		pyro_arm |= (1 <<4);
+	if (CAMERA_ACTIVE) {
+		pyro_arm |= (1 << 4);
 	}
-	
 	
     payload.telemetry.pyro_state = pyro_arm;
 	payload.telemetry.sats = sats;
     payload.telemetry.flight_state = flight_state;
 	payload.telemetry.battery_voltage = (float)psu_read_battery_voltage();
+	printf("Battery voltage: %f\n", payload.telemetry.battery_voltage);
 
     return payload;
 }
@@ -127,9 +155,6 @@ goober_t lora_create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool
 
 void lora_transmit_packet(goober_t *packet)
 {
-    #ifdef LORA_DEBUG
-    printf("Preparing packet w/ message class: 0x%X\n", packet->MSG_CLS);
-    #endif
 
     size_t len = 5 + packet->PAYLOAD_SIZE; //5 bytes + payload (n bytes)
     uint8_t *packet_data = malloc(len);
@@ -144,10 +169,6 @@ void lora_transmit_packet(goober_t *packet)
 
     lora_send_packet(packet_data, len);
     free(packet_data);
-
-    #ifdef LORA_DEBUG
-    printf("Sent packet w/ message class: 0x%X\n", packet->MSG_CLS);
-    #endif
 
     int lost = lora_packet_lost();
     if (lost != 0) {
@@ -179,40 +200,43 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 	switch (request_msg_type) {
 		case MSG_TYPE_REQ_TELEM: {
-			printf("Received REQ_TELEM\n");
+			// printf("Received REQ_TELEM\n");
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_AUX_ACTIVATE: {
-			printf("Received REQ_AUX_ACTIVATE\n");
+			// printf("Received REQ_AUX_ACTIVATE\n");
+			turn_on_cameras();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_AUX_DEACTIVATE: {
-			printf("Received REQ_AUX_DEACTIVATE\n");
+			turn_off_cameras();
+			// printf("Received REQ_AUX_DEACTIVATE\n");
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_TXLOCK_ACTIVATE: {
-			printf("Received REQ_TXLOCK_ACTIVATE\n");
+			// printf("Received REQ_TXLOCK_ACTIVATE\n");
+			TXLOCK = true;
 			resp_msg_cls = POST_TXLOCK_ACTIVATE;
 			resp_msg_payload.single_byte.single_byte_payload = 0x79;
 			resp_msg_payload_len = 1;
 			break;
 		}
 		case MSG_TYPE_REQ_REBOOT: {
-			printf("Received REQ_REBOOT\n");
+			// printf("Received REQ_REBOOT\n");
 			esp_restart();
 			break;
 		}
 		case MSG_TYPE_REQ_PINGPONG: {
-			printf("Received REQ_PINGPONG\n");
+			// printf("Received REQ_PINGPONG\n");
 			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
 			resp_msg_payload.single_byte.single_byte_payload = 0x01;
 			resp_msg_payload_len = 1;
@@ -228,21 +252,20 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 	if (resp_msg_payload_len != 0) {
 		resp = lora_create_packet(SLAVE_DEV_ID,0,0,0,resp_msg_cls,resp_msg_payload_len, &resp_msg_payload);
-		printf("Created packet with the following parameters: \n");
-		printf("MSG_CLS: 0x%X\n", resp_msg_cls);
-		printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
-		printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
-		printf("DEV_ID: 0x%X\n", resp.DEV_ID);
-		printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
+		// printf("Created packet with the following parameters: \n");
+		// printf("MSG_CLS: 0x%X\n", resp_msg_cls);
+		// printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
+		// printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
+		// printf("DEV_ID: 0x%X\n", resp.DEV_ID);
+		// printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
 		
 	
 	resp.SEQ_ID = recv_packet.SEQ_ID;
 
 	printf("Sending packet: ");
-	for(int i = 0; i < sizeof(resp); i++) {
+	for(int i = 0; i < (5 + 51); i++) {
 		printf("%02X ", ((uint8_t*)&resp)[i]);
 	}
-	printf("\n");
 
 	lora_transmit_packet(&resp);
 	}
@@ -250,33 +273,40 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 void slave_lora_task(goober_payload_t *telemetry)
 {
-    uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
+	TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
+    
+	uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 
-    bool waiting = true;
-    TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
+	if (!TXLOCK) {
+		bool waiting = true;
 
-    lora_receive(); // put into receive mode
+		lora_receive(); // put into receive mode
 
-    printf("Waiting for packet\n");
+		while(waiting) {
+			if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(6)) { // Fixed timeout
+				printf("LORA: Timeout waiting for packet after %ldms\n", (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
+				waiting = false; // Exit the loop after timeout
+			} else {
+				if(lora_received() != 0) {
+					waiting = false;
+					int rxLen = lora_receive_packet(buf, sizeof(buf));
+					printf("Received packet after %ldms: ", (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
+					for(int i = 0; i < rxLen; i++) {
+						printf("%02X ", buf[i]);
+					}
+					printf(" ");
+					TickType_t process_start_time = xTaskGetTickCount();
+					lora_process(buf, rxLen, *telemetry); // 45 ms max
+					printf("Took %ldms to process packet\n", (xTaskGetTickCount() - process_start_time) * portTICK_PERIOD_MS);
+				} else {
+					vTaskDelay(1);
+				}
+			}
+		}
 
-    while(waiting) {
-        // Check for timeout (90ms)
-        if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(90)) {
-            // printf("Timeout waiting for packet\n");
-            waiting = false; // Exit the loop after timeout
-        } else {
-            if(lora_received() != 0) {
-                waiting = false;
-                int rxLen = lora_receive_packet(buf, sizeof(buf));
-                printf("Received packet: ");
-                for(int i = 0; i < rxLen; i++) {
-                    printf("%02X ", buf[i]);
-                }
-                printf("\n");
-                lora_process(buf, rxLen, *telemetry);
-            } else {
-                vTaskDelay(1);
-            }
-        }
-    }
+	}
+	else if (TXLOCK) {
+		goober_t TXLockPacket = lora_create_packet(SLAVE_DEV_ID,0,0,1,MSG_TYPE_POST_TELEM,TELEM_PACKET_SIZE, telemetry);
+		lora_transmit_packet(&TXLockPacket);
+	}	
 }
