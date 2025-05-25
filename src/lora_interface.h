@@ -1,6 +1,7 @@
 #ifndef LORA_TASK_H
 #define LORA_TASK_H
 
+#include "stdbool.h"
 #include "stdint.h"
 #include "lora.h"
 
