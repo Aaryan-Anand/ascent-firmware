@@ -175,7 +175,7 @@ void flash_write_queue(int64_t max_time) {
     static UBaseType_t max_count = 0;
     UBaseType_t count = uxQueueMessagesWaiting(flash_packet_queue);
     max_count = count > max_count ? count : max_count;
-    printf("ITEMS IN QUEUE: %u, %u\n", count, max_count);
+    // printf("ITEMS IN QUEUE: %u, %u\n", count, max_count);
 
     while ((esp_timer_get_time() - start) < max_time) {
         if (xQueueReceive(flash_packet_queue, &packet, 0) == pdTRUE) {
