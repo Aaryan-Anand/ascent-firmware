@@ -24,7 +24,7 @@
 static bool TXLOCK = false;
 static bool CAMERA_ACTIVE = false;
 
-_Atomic thread_safe_txlock = false;
+_Atomic bool thread_safe_txlock = false;
 
 QueueHandle_t lora_packet_queue;
 
