@@ -93,4 +93,8 @@ void lora_transmit_packet(goober_t *packet);
 
 void slave_lora_task(goober_payload_t *telemetry);
 
+void lora_queue_packet(goober_payload_t *payload);
+
+void lora_read_latest_queue_packet(goober_payload_t *payload);
+
 #endif

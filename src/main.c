@@ -167,11 +167,11 @@ void primary_task(void *pvParameters) {
 
             // sending of telemetry packet to queue
             uint8_t current_flight_state = get_flight_state();
-            // goober_payload_t telemetry = create_telemetry_payload(ekf_latitude, ekf_longitude, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
-
+            goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
+            lora_queue_packet(&telemetry);
             //Temporarily disable flash writing
             //flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, latitude, longitude, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
-            //flash_queue_packet(&fp);
+            // flash_queue_packet(&fp);
             
         }
 
@@ -184,7 +184,7 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -193,7 +193,7 @@ void primary_task(void *pvParameters) {
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)10)
+#define SECONDARY_LOOP_FQ ((uint32_t)20)
 #define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
 void secondary_task(void *pvParameters) {
    uint32_t cycle = 0;
@@ -201,9 +201,10 @@ void secondary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
-            goober_payload_t telemetry_empty = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-            slave_lora_task(&telemetry_empty);
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
+            goober_payload_t telemetry;
+            lora_read_latest_queue_packet(&telemetry);
+            slave_lora_task(&telemetry);
         }
 
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
@@ -222,7 +223,7 @@ void secondary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        // printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
