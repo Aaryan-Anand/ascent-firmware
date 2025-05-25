@@ -64,21 +64,21 @@ void flight_update(
             break;
 
         case FS_COAST_SUSTAINER:
-            if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && ekf_agl > APOGEE_MIN && ekf_vertical_vel < 0) {
+            if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(raw_vertical_acl) < 10) {
                 deploy(APPO);
                 flight_state = FS_UNDER_DROGUES;
             }
             break;
 
         case FS_UNDER_DROGUES:
-            if (barometric_agl < MAINS_ALT && ekf_agl < MAINS_ALT) {
+            if (barometric_agl < MAINS_ALT) {
                 deploy(MAINS);
                 flight_state = FS_UNDER_MAINS;
             }
             break;
 
         case FS_UNDER_MAINS:
-            if (fabs(average_barometric_velocity) < 5 && fabs(ekf_vertical_vel) < 5) {
+            if (fabs(average_barometric_velocity) < 5) {
                 flight_state = FS_LANDED;
             }
             break;
@@ -88,4 +88,8 @@ void flight_update(
 
         default: break;
     }
+}
+
+uint8_t get_flight_state(void) {
+    return flight_state;
 }

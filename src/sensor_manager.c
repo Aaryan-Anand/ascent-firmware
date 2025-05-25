@@ -36,9 +36,9 @@ float gyr_correction_matrix[3][3] = {
 };
 
 float mag_correction_matrix[3][3] = {
-    {1.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f}
+    {0.051621, 0.003055, 0.000432},
+    {0.003055, 0.057943, -0.000702},
+    {0.000432, -0.000702, 0.056321}
 };
 
 float high_g_correction_matrix[3][3] = {

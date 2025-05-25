@@ -24,4 +24,6 @@ void flight_update(
     float raw_vertical_acl
 );
 
+uint8_t get_flight_state(void);
+
 #endif

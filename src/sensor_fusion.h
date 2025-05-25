@@ -143,4 +143,43 @@ void estimate_zenith_from_mag(
     direction_cosine_t* zenith_out
 );
 
+/**
+ * @brief Checks if the origin vectors have been set
+ * @return true if origin vectors are set, false otherwise
+ */
+bool is_origin_set(void);
+
+/**
+ * @brief Updates the current zenith direction based on magnetic field measurements
+ * @param current_mag Current magnetic field direction cosine
+ */
+void update_zenith_direction(const direction_cosine_t* current_mag);
+
+/**
+ * @brief Gets the current zenith direction
+ * @param zenith_out Pointer to store the current zenith direction
+ */
+void get_current_zenith(direction_cosine_t* zenith_out);
+
+/**
+ * @brief Estimates the rocket's orientation using magnetic field and gyroscope data
+ * 
+ * Uses magnetic field data to estimate zenith direction and combines with gyroscope
+ * data for orientation estimation. The orientation is represented as direction cosines
+ * in the body frame. Uses inverse of sensor age as adaptive gain for magnetic data fusion.
+ * 
+ * @param current_mag Current magnetic field direction cosine
+ * @param current_gyr Current gyroscope readings (rad/s)
+ * @param dt Time step in seconds
+ * @param mag_age Age of magnetic sensor data in cycles
+ * @param orientation_out Pointer to store the estimated orientation direction cosine
+ */
+void estimate_orientation(
+    const direction_cosine_t* current_mag,
+    const imu_raw_3d_t* current_gyr,
+    double dt,
+    uint32_t mag_age,
+    direction_cosine_t* orientation_out
+);
+
 #endif // SENSOR_FUSION_H
