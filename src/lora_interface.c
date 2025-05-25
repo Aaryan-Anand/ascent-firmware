@@ -13,6 +13,7 @@
 #include "esp_random.h"
 #include "lora_interface.h"
 #include "flash_interface.h"
+#include "driver_buzzer.h"
 
 #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
@@ -23,6 +24,15 @@ static bool TXLOCK = false;
 static bool CAMERA_ACTIVE = false;
 
 QueueHandle_t lora_packet_queue;
+
+void flash_erase_jingle(void) {
+    note(NOTE_E, 8, 120);
+    note(NOTE_G, 8, 120);
+    note(NOTE_C, 7, 200);
+    note(NOTE_D, 7, 120);
+    note(NOTE_B, 6, 250);
+    note(NOTE_E, 7, 400);
+}
 
 void turn_on_cameras(void) {
     pyro_activate(PYRO_CHANNEL_3,0,1); 
@@ -232,6 +242,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		case MSG_TYPE_REQ_TXLOCK_ACTIVATE: {
 			// printf("Received REQ_TXLOCK_ACTIVATE\n");
 			TXLOCK = flash_prepare_for_flight();
+			flash_erase_jingle();
 			resp_msg_cls = POST_TXLOCK_ACTIVATE;
 			resp_msg_payload.single_byte.single_byte_payload = 0x79;
 			resp_msg_payload_len = 1;

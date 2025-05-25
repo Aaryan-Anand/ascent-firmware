@@ -240,9 +240,6 @@ void app_main(void) {
         // turn_on_fan();
         error_beep();
 
-        flash_prepare_for_flight();
-        flash_erase_jingle();
-
         //beep_pyro_cont();
 
         // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
@@ -374,13 +371,4 @@ void fail(int n)
         }
         vTaskDelay(2000/portTICK_PERIOD_MS);
     }
-}
-
-void flash_erase_jingle(void) {
-    note(NOTE_E, 8, 120);
-    note(NOTE_G, 8, 120);
-    note(NOTE_C, 7, 200);
-    note(NOTE_D, 7, 120);
-    note(NOTE_B, 6, 250);
-    note(NOTE_E, 7, 400);
 }
