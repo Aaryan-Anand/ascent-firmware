@@ -98,5 +98,7 @@ void slave_lora_task(goober_payload_t *telemetry);
 void lora_queue_packet(goober_payload_t *payload);
 
 void lora_read_latest_queue_packet(goober_payload_t *payload);
+
+bool is_tx_lock();
             
 #endif
