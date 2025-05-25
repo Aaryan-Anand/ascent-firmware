@@ -65,13 +65,6 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
     *ekf_roll = 0.0f;
 }
 
-void fake_gps(float *lat, float *lng, uint32_t *alt, uint8_t *num_sat) {
-    *lat = 0.0f;
-    *lng = 0.0f;
-    *alt = 0.0f;
-    *num_sat = 0;
-}
-
 TaskHandle_t primary_task_handle;
 #define PRIMARY_LOOP_FQ ((uint32_t)30)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
@@ -100,6 +93,20 @@ void primary_task(void *pvParameters) {
         }
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
+
+            if (pyro_continuity(PYRO_CHANNEL_1)) {
+                pyro_arm |= (1);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_2)) {
+                pyro_arm |= (1 << 1);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_3)) {
+                pyro_arm |= (1 << 2);
+            }
+            if (pyro_continuity(PYRO_CHANNEL_4)) {
+                pyro_arm |= (1 << 3);
+            }
+
             imu_raw_3d_t acc, gyr, mag;
             imu_float_3d_t high_g_acc;
             bno055_get_local(&acc, &gyr, &mag, false);
@@ -160,7 +167,7 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        //printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -232,7 +239,6 @@ void app_main(void) {
     if (false) {
         flash_dump_to_serial();
     } else {
-        turn_on_cameras();
         // turn_on_fan();
         error_beep();
 
@@ -246,6 +252,7 @@ void app_main(void) {
         vTaskDelay(100 / portTICK_PERIOD_MS);
 
         xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
         xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
     }
 
@@ -356,14 +363,6 @@ void beep_pyro_cont(void) {
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
-}
-
-void turn_on_cameras(void) {
-    pyro_activate(PYRO_CHANNEL_3,0,1); 
-}
-
-void turn_on_fan(void) {
-    pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
 
 void fail(int n)

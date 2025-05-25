@@ -10,6 +10,7 @@
 #include "driver_psu.h"
 #include "driver_pyro.h"
 #include "esp_random.h"
+#include "esp_random.h"
 #include "lora_interface.h"
 
 #define LORA_DEBUG
@@ -201,6 +202,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 	switch (request_msg_type) {
 		case MSG_TYPE_REQ_TELEM: {
 			// printf("Received REQ_TELEM\n");
+			// printf("Received REQ_TELEM\n");
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
@@ -209,12 +211,16 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		case MSG_TYPE_REQ_AUX_ACTIVATE: {
 			// printf("Received REQ_AUX_ACTIVATE\n");
 			turn_on_cameras();
+			// printf("Received REQ_AUX_ACTIVATE\n");
+			turn_on_cameras();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_AUX_DEACTIVATE: {
+			turn_off_cameras();
+			// printf("Received REQ_AUX_DEACTIVATE\n");
 			turn_off_cameras();
 			// printf("Received REQ_AUX_DEACTIVATE\n");
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
@@ -232,10 +238,12 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		}
 		case MSG_TYPE_REQ_REBOOT: {
 			// printf("Received REQ_REBOOT\n");
+			// printf("Received REQ_REBOOT\n");
 			esp_restart();
 			break;
 		}
 		case MSG_TYPE_REQ_PINGPONG: {
+			// printf("Received REQ_PINGPONG\n");
 			// printf("Received REQ_PINGPONG\n");
 			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
 			resp_msg_payload.single_byte.single_byte_payload = 0x01;
@@ -258,6 +266,12 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		// printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
 		// printf("DEV_ID: 0x%X\n", resp.DEV_ID);
 		// printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
+		// printf("Created packet with the following parameters: \n");
+		// printf("MSG_CLS: 0x%X\n", resp_msg_cls);
+		// printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
+		// printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
+		// printf("DEV_ID: 0x%X\n", resp.DEV_ID);
+		// printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
 		
 	
 	resp.SEQ_ID = recv_packet.SEQ_ID;
@@ -273,6 +287,9 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 void slave_lora_task(goober_payload_t *telemetry)
 {
+	TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
+    
+	uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255
 	TickType_t start_time = xTaskGetTickCount(); // Get the current tick count
     
 	uint8_t buf[256]; // Maximum Payload size of SX1276/77/78/79 is 255

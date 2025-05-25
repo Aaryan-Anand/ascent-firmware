@@ -1,6 +1,8 @@
 #ifndef FLIGHT_H
 #define FLIGHT_H
 
+#include <stdint.h>
+
 enum FlightState
 {
     FS_ON_PAD = 0,
