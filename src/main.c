@@ -82,10 +82,7 @@ void primary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        int sum = 0;
-        sum += pyro_continuity(PYRO_CHANNEL_1);
-        sum += pyro_continuity(PYRO_CHANNEL_2)*2;
-        uint8_t pyro_arm = sum;
+        uint8_t pyro_arm = 0;
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
             uint32_t UTCtstamp;
@@ -151,7 +148,8 @@ void primary_task(void *pvParameters) {
             flight_update(ekf_altitude, 0, 0, barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
             uint8_t current_flight_state = get_flight_state();
-            goober_payload_t telemetry = create_telemetry_payload(ekf_latitude, ekf_longitude, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
+            goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
+            lora_queue_packet(&telemetry);
 
             flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
             flash_queue_packet(&fp);
@@ -176,7 +174,7 @@ void primary_task(void *pvParameters) {
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)10)
+#define SECONDARY_LOOP_FQ ((uint32_t)20)
 #define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
 void secondary_task(void *pvParameters) {
    uint32_t cycle = 0;
@@ -184,7 +182,7 @@ void secondary_task(void *pvParameters) {
     while (1) {
         int64_t start_time = esp_timer_get_time();
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
             goober_payload_t telemetry;
             lora_read_latest_queue_packet(&telemetry);
             slave_lora_task(&telemetry);
