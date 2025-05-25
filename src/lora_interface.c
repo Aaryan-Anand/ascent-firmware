@@ -12,6 +12,7 @@
 #include "esp_random.h"
 #include "esp_random.h"
 #include "lora_interface.h"
+#include "flash_interface.h"
 
 #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
@@ -230,7 +231,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		}
 		case MSG_TYPE_REQ_TXLOCK_ACTIVATE: {
 			// printf("Received REQ_TXLOCK_ACTIVATE\n");
-			TXLOCK = true;
+			TXLOCK = flash_prepare_for_flight();
 			resp_msg_cls = POST_TXLOCK_ACTIVATE;
 			resp_msg_payload.single_byte.single_byte_payload = 0x79;
 			resp_msg_payload_len = 1;
