@@ -14,6 +14,7 @@
 #include "lora_interface.h"
 #include "flash_interface.h"
 #include "driver_buzzer.h"
+#include "stdatomic.h"
 
 #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
@@ -22,6 +23,8 @@
 
 static bool TXLOCK = false;
 static bool CAMERA_ACTIVE = false;
+
+_Atomic thread_safe_txlock = false;
 
 QueueHandle_t lora_packet_queue;
 
@@ -266,6 +269,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			resp_msg_cls = POST_TXLOCK_ACTIVATE;
 			resp_msg_payload.single_byte.single_byte_payload = 0x79;
 			resp_msg_payload_len = 1;
+			atomic_store(&thread_safe_txlock, true);
 			break;
 		}
 		case MSG_TYPE_REQ_REBOOT: {
@@ -370,4 +374,8 @@ void slave_lora_task(goober_payload_t *telemetry)
 		goober_t TXLockPacket = lora_create_packet(SLAVE_DEV_ID,0,0,1,MSG_TYPE_POST_TELEM,TELEM_PACKET_SIZE, telemetry);
 		lora_transmit_packet(&TXLockPacket);
 	}	
+}
+
+bool is_tx_lock() {
+	return atomic_load(&thread_safe_txlock);
 }
