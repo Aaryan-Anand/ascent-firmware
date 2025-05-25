@@ -57,7 +57,7 @@ void flash_flight_init(void)
     assert(flash_packet_queue != NULL);
 }
 
-void flash_prepare_for_flight(void) {
+bool flash_prepare_for_flight(void) {
     uint8_t res;
 
     printf("DOING CHIP ERASE\n");
@@ -73,8 +73,10 @@ void flash_prepare_for_flight(void) {
     for (int i = 0; i < n; i++) {
         printf("Erasing %d/%ld\n", i, n);
         res = w25qxx_sector_erase(i*4096);
-        if (res) fail(FAIL_FLASH_CHIP_ERASE);
+        if (res) return false;
     }
+
+    return true;
 }
 
 void flash_dump_to_serial(void) {
