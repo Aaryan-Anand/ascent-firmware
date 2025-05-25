@@ -35,7 +35,7 @@ uint32_t flash_get_addr();
 
 void flash_flight_init(void);
 
-void flash_prepare_for_flight(void);
+bool flash_prepare_for_flight(void);
 
 void flash_dump_to_serial(void);
 
