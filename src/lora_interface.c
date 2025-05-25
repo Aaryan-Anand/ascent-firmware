@@ -25,6 +25,26 @@ static bool CAMERA_ACTIVE = false;
 
 QueueHandle_t lora_packet_queue;
 
+#define APPO PYRO_CHANNEL_1
+#define MAINS PYRO_CHANNEL_2
+
+static bool deploy(pyro_channel_t channel)
+{
+    bool cont;
+
+    for (int i = 0; i < 2; i++) {
+        cont = pyro_continuity(channel);
+        if (cont) {
+            pyro_activate(channel, 150*(i+1), 0);
+            // vTaskDelay(50 / portTICK_PERIOD_MS);
+            cont = pyro_continuity(channel);
+            if (!cont) return true;
+        }
+    }
+
+    return false;
+}
+
 void flash_erase_jingle(void) {
     note(NOTE_E, 8, 120);
     note(NOTE_G, 8, 120);
@@ -260,6 +280,22 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
 			resp_msg_payload.single_byte.single_byte_payload = 0x01;
 			resp_msg_payload_len = 1;
+			break;
+		}
+		case MSG_TYPE_REQ_POP_APOGEE: {
+			printf("Received REQ_POP_APOGEE\n");
+			resp_msg_cls = MSG_TYPE_POST_TELEM;
+			resp_msg_payload = telemetry;
+			resp_msg_payload_len = TELEM_PACKET_SIZE;
+			deploy(APPO);
+			break;
+		}
+		case MSG_TYPE_REQ_POP_MAINS: {
+			printf("Received REQ_POP_MAINS\n");
+			resp_msg_cls = MSG_TYPE_POST_TELEM;
+			resp_msg_payload = telemetry;
+			resp_msg_payload_len = TELEM_PACKET_SIZE;
+			deploy(MAINS);
 			break;
 		}
 		default: {
