@@ -49,6 +49,8 @@ static tNeopixelContext neopixel;
 
 #include "sensor_fusion.h"
 
+#define GENERAL_DEBUG
+
 void validate_esp32(void);
 void init_boot_sequence(void);
 void beep_pyro_cont(void);
@@ -118,12 +120,12 @@ void primary_task(void *pvParameters) {
             baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
             float pitch, yaw, roll;
-            ekf(&pitch, &yaw, &roll);
+            //ekf(&pitch, &yaw, &roll);
 
             flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
             uint8_t current_flight_state = get_flight_state();
-            goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, pitch, yaw, roll, 0, numSV, current_flight_state);
+            goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, 0, 0, 0, 0, numSV, current_flight_state);
             lora_queue_packet(&telemetry);
 
             // if (is_tx_lock() && get_flight_state() != FS_LANDED) {
@@ -142,7 +144,9 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
+        #ifdef GENERAL_DEBUG
         printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        #endif
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -180,7 +184,9 @@ void secondary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
+        #ifdef GENERAL_DEBUG
         printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        #endif
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -190,13 +196,16 @@ void secondary_task(void *pvParameters) {
 
 void app_main(void) {
     esp_err_t err;
-    TaskHandle_t megolavania_task_handle;
+    //TaskHandle_t megolavania_task_handle;
 
+#ifdef GENERAL_DEBUG
     validate_esp32();
-
+#endif
     err = esp_task_wdt_deinit();
     if (err != ESP_OK) {
+        #ifdef GENERAL_DEBUG
         printf("FAILED TO DEINIT TASK WATCH DOG\n");
+        #endif
         return;
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -231,6 +240,9 @@ void app_main(void) {
     // w25qxx_chip_erase();
 
     // beep battery voltage
+
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+
     beep_pyro_cont();
 
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
@@ -245,6 +257,7 @@ void app_main(void) {
     // but since the primary and secondary tasks are both infinite loops the esp will never restart
 }
 
+#ifdef GENERAL_DEBUG    
 void validate_esp32(void) {
     /* Print chip information */
     esp_chip_info_t chip_info;
@@ -283,7 +296,9 @@ void validate_esp32(void) {
         printf("PSRAM: Not enabled in config\n");
     #endif
     printf("==============================\n\n");
+    
 }
+#endif
 
 void init_boot_sequence(void) {
     // NeoPixel
@@ -343,7 +358,7 @@ void beep_pyro_cont(void) {
         for (int j = 0; j < 4; j++) {
             if (pyro_continuity(j+1)) high_beep();
             else low_beep();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
+            vTaskDelay(200 / portTICK_PERIOD_MS);
         }
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
@@ -352,7 +367,9 @@ void beep_pyro_cont(void) {
 void fail(int n)
 {
     while (1) {
+        #ifdef GENERAL_DEBUG
         printf("FAIL STATE %d\n", n);
+        #endif
         for (int i = 0; i < n; i++) {
             neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
             vTaskDelay(100/portTICK_PERIOD_MS);
