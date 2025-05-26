@@ -110,7 +110,7 @@ void primary_task(void *pvParameters) {
             imu_float_3d_t high_g_acc;
             bno055_get_local(&acc, &gyr, &mag, false);
             h3lis331dl_get_local(&high_g_acc, false);
-
+            printf("%d \t %d \t %d\n", mag.x, mag.y, mag.z);
             baro_double_t baro;
             bmp390_get_local(&baro);
 
@@ -154,11 +154,11 @@ void primary_task(void *pvParameters) {
         }
         
        // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
-        printf("[P] Min frequencies recorded: ");
+        //printf("[P] Min frequencies recorded: ");
         for (int i = 0; i < min_freq_index; i++) {
-            printf("%.2f ", min_freq[i]);
+            //printf("%.2f ", min_freq[i]);
         }
-        printf("\n");
+        //printf("\n");
         #endif
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
