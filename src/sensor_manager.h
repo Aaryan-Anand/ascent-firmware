@@ -15,6 +15,11 @@
 void i2c_init(void);
 
 /**
+ * @brief Update the ground alt for the barometer
+ */
+void bmp_aquire_ground();
+
+/**
  * @brief Initialize BMP390 and calibrate for ground pressure.
  */
 void bmp_flight_init(void);

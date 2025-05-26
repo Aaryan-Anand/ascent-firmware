@@ -22,13 +22,6 @@ typedef struct {
     float latitude;
     float longitude;
     uint32_t gps_altitude;
-
-    float ekf_latitude;
-    float ekf_longitude;
-    float ekf_altitude;
-    float ekf_pitch;
-    float ekf_yaw;
-    float ekf_roll;
 } flash_packet;
 
 uint32_t flash_get_addr();

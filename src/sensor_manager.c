@@ -76,6 +76,15 @@ void i2c_init(){
     bmp390_interface_init();
 }
 
+void bmp_aquire_ground() {
+    // Calculate and store ground pressure and altitude
+    update_ground_pressure(&groundPressure, &groundTemperature, num_readings);
+    pressure_to_m(&groundPressure, &groundTemperature, &groundAlt);
+    
+    // Set the ground altitude in the interface
+    bmp390_set_ground_alt(groundAlt);
+}
+
 void bmp_flight_init(){
     // Initialize the BMP390 sensor
     bmp390_init(I2C_MASTER_PORT);
@@ -104,12 +113,7 @@ void bmp_flight_init(){
     // Pass calibration parameters to the BMP interface
     bmp390_set_calibration(bmp_scaling, bmp_bias);
     
-    // Calculate and store ground pressure and altitude
-    update_ground_pressure(&groundPressure, &groundTemperature, num_readings);
-    pressure_to_m(&groundPressure, &groundTemperature, &groundAlt);
-    
-    // Set the ground altitude in the interface
-    bmp390_set_ground_alt(groundAlt);
+    bmp_aquire_ground();
 }
 
 void bno_flight_init(){

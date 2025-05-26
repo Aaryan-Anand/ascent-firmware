@@ -10,4 +10,6 @@
 #define MAINS_ALT 60
 #define POWERED_ALT 15
 
+#define PANIC_VEL (-180.0f/3.28)
+
 #endif

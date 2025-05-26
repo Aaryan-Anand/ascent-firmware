@@ -66,7 +66,7 @@ void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, fl
 }
 
 TaskHandle_t primary_task_handle;
-#define PRIMARY_LOOP_FQ ((uint32_t)30)
+#define PRIMARY_LOOP_FQ ((uint32_t)50)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
 void primary_task(void *pvParameters) {
     uint32_t cycle = 0;
@@ -89,7 +89,7 @@ void primary_task(void *pvParameters) {
             GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
         }
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/30) == 0) {
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/50) == 0) {
 
             if (pyro_continuity(PYRO_CHANNEL_1)) {
                 pyro_arm |= (1);
@@ -109,26 +109,6 @@ void primary_task(void *pvParameters) {
             bno055_get_local(&acc, &gyr, &mag, false);
             h3lis331dl_get_local(&high_g_acc, false);
 
-            // Get and print raw BNO data
-            //imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
-            // if (bno055_get_raw(&raw_acc, &raw_gyr, &raw_mag) == ESP_OK) {
-            //      printf("%d \t %d \t %d\n",
-            //            raw_acc.x, raw_acc.y, raw_acc.z,
-            //            raw_gyr.x, raw_gyr.y, raw_gyr.z,
-            //             raw_mag.x, raw_mag.y, raw_mag.z);
-            // }
-
-            // Only calculate zenith if origin is set
-            if (is_origin_set()) {
-                // Calculate current magnetic direction cosine
-                double mag_magnitude = sqrt((double)(mag.x * mag.x + mag.y * mag.y + mag.z * mag.z));
-                direction_cosine_t current_mag = {
-                    .x = (double)mag.x / mag_magnitude,
-                    .y = (double)mag.y / mag_magnitude,
-                    .z = (double)mag.z / mag_magnitude
-                };
-            }
-
             baro_double_t baro;
             bmp390_get_local(&baro);
 
@@ -137,25 +117,20 @@ void primary_task(void *pvParameters) {
             float average_barometric_velocity;
             baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
-            float ekf_latitude;
-            float ekf_longitude;
-            float ekf_altitude;
-            float ekf_pitch;
-            float ekf_yaw;
-            float ekf_roll;
-            fake_ekf(&ekf_latitude, &ekf_longitude, &ekf_altitude, &ekf_pitch, &ekf_yaw, &ekf_roll);
+            float pitch, yaw, roll;
+            ekf(&pitch, &yaw, &roll);
 
-            flight_update(ekf_altitude, 0, 0, barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
+            flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
             uint8_t current_flight_state = get_flight_state();
-            goober_payload_t telemetry = create_telemetry_payload(lat, lon, ekf_altitude, average_barometric_velocity, acc.x, ekf_pitch, ekf_yaw, ekf_roll, gyr.x, numSV, current_flight_state);
+            goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, pitch, yaw, roll, 0, numSV, current_flight_state);
             lora_queue_packet(&telemetry);
 
-            if (is_tx_lock()) {
-                flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude, ekf_latitude, ekf_longitude, ekf_altitude, ekf_pitch, ekf_yaw, ekf_roll};
+            // if (is_tx_lock() && get_flight_state() != FS_LANDED) {
+            if (true) {
+                flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
                 flash_queue_packet(&fp);
             }
-            
         }
 
         int64_t end_time = esp_timer_get_time();
@@ -190,7 +165,7 @@ void secondary_task(void *pvParameters) {
             slave_lora_task(&telemetry);
         }
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/10) == 0) {
+        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
             flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
         }
 
@@ -233,24 +208,37 @@ void app_main(void) {
 
     ascent_beep();
 
+    // if (psu_read_battery_voltage() < 6) {
+    //     flash_dump_to_serial();
+
+    //     while (true) vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // }
+
+    // step 1
+    // flash_prepare_for_flight();
+    // while(true) vTaskDelay(1000/ portTICK_PERIOD_MS);
+
+    // step 2
+    // vTaskDelay(5000 / portTICK_PERIOD_MS);
+    
+    // step 3
+    // vTaskDelay(5000 / portTICK_PERIOD_MS);
+    // flash_dump_to_serial();
+
+
+
+
     // w25qxx_chip_erase();
 
-    // TODO: this is luke I will handle this if statement later
-    if (false) {
-        flash_dump_to_serial();
-    } else {
-        // turn_on_fan();
-        error_beep();
+    // beep battery voltage
+    beep_pyro_cont();
 
-        //beep_pyro_cont();
+    // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
-        // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-        xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
-    }
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
+    xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
@@ -339,12 +327,12 @@ void init_boot_sequence(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     // Set origin vectors during boot sequence
-    printf("Setting origin vectors...\n");
-    if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
-        printf("Origin vectors set successfully\n");
-    } else {
-        printf("Warning: Failed to set origin vectors\n");
-    }
+    // printf("Setting origin vectors...\n");
+    // if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
+    //     printf("Origin vectors set successfully\n");
+    // } else {
+    //     printf("Warning: Failed to set origin vectors\n");
+    // }
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);

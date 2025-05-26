@@ -5,7 +5,7 @@
 
 #define HISTORY_SIZE 3
 #define VELOCITY_HISTORY_SIZE 10
-#define DT 0.01f
+#define DT 0.02f
 
 static float barometric_agl;
 static float barometric_velocity;

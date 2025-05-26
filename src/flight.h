@@ -16,10 +16,6 @@ enum FlightState
 };
 
 void flight_update(
-    float ekf_agl,
-    float ekf_vertical_vel,
-    float ekf_vertical_acl,
-
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
