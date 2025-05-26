@@ -17,7 +17,7 @@
 #include "stdatomic.h"
 #include "sensor_manager.h"
 
-//#define LORA_DEBUG
+#define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
 #define TELEM_PACKET_SIZE 51
 #define LOCATOR_PACKET_SIZE 16

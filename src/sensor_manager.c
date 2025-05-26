@@ -36,9 +36,9 @@ float gyr_correction_matrix[3][3] = {
 };
 
 float mag_correction_matrix[3][3] = {
-    {1, 0, 0},
-    {0, 1, 0},
-    {0, 0, 1}
+    {0.940808, 0.048346, 0.011292},
+    {0.048346, 1.035143, -0.004551},
+    {0.011292, -0.004551, 1.053248}
 };
 
 float high_g_correction_matrix[3][3] = {
@@ -49,7 +49,7 @@ float high_g_correction_matrix[3][3] = {
 
 float acc_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
-float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float mag_bias_vector[3] = {979.674588, 499.134952, -895.484539};
 float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 
 // Remove redundant rotation and calibration helper functions
