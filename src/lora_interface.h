@@ -5,7 +5,7 @@
 #include "stdint.h"
 #include "lora.h"
 
-#define LORA_FREQ 915e6
+#define LORA_FREQ 900e6
 
 // ONE BYTE MESSAGE PAYLOADS
  

@@ -15,6 +15,7 @@
 #include "flash_interface.h"
 #include "driver_buzzer.h"
 #include "stdatomic.h"
+#include "sensor_manager.h"
 
 #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
@@ -265,6 +266,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 		case MSG_TYPE_REQ_TXLOCK_ACTIVATE: {
 			// printf("Received REQ_TXLOCK_ACTIVATE\n");
 			TXLOCK = flash_prepare_for_flight();
+			bmp_aquire_ground();
 			flash_erase_jingle();
 			resp_msg_cls = POST_TXLOCK_ACTIVATE;
 			resp_msg_payload.single_byte.single_byte_payload = 0x79;

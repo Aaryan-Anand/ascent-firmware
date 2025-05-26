@@ -23,6 +23,8 @@ static uint32_t sub_addr = FLIGHT_LOG_START_ADDR;
 #define RING_BUFFER_SIZE 50
 QueueHandle_t flash_packet_queue;
 
+void flash_erase_jingle(void);
+
 static void save_addr() {
     uint8_t res = w25qxx_sector_erase(0);
     res = w25qxx_write(0, (uint8_t*)&addr, 4);
@@ -134,20 +136,13 @@ void flash_dump_to_serial(void) {
         printf("%f,", fp.latitude);
         printf("%f,", fp.longitude);
         printf("%lu,", fp.gps_altitude);
-        
-        
-        printf("%f,", fp.ekf_latitude);
-        printf("%f,", fp.ekf_longitude);
-        printf("%f,", fp.ekf_altitude);
-
-        printf("%f,", fp.ekf_pitch);
-        printf("%f,", fp.ekf_yaw);
-        printf("%f,", fp.ekf_roll);
 
         printf("\n");
     }
 
     save_addr();
+
+    flash_erase_jingle();
 
     printf("FINISHED DUMPING DATA\n");
 }
