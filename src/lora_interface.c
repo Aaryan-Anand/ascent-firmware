@@ -17,7 +17,7 @@
 #include "stdatomic.h"
 #include "sensor_manager.h"
 
-#define LORA_DEBUG
+// #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
 #define TELEM_PACKET_SIZE 51
 #define LOCATOR_PACKET_SIZE 16
@@ -88,15 +88,19 @@ void lora_flight_init()
 	//cr = lora_get_coding_rate();
 	#ifdef LORA_DEBUG
 	printf("coding_rate=%d", cr);
+	#endif
 
 	lora_set_bandwidth(bw);
 	//lora_set_bandwidth(CONFIG_BANDWIDTH);
 	//int bw = lora_get_bandwidth();
+	#ifdef LORA_DEBUG
 	printf("bandwidth=%d", bw);
+	#endif
 
 	lora_set_spreading_factor(sf);
 	//lora_set_spreading_factor(CONFIG_SF_RATE);
 	//int sf = lora_get_spreading_factor();
+	#ifdef LORA_DEBUG
 	printf("spreading_factor=%d", sf);
 	#endif
 
@@ -124,7 +128,9 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 	#endif
 
     payload.telemetry.timestamp = esp_timer_get_time();
+	#ifdef LORA_DEBUG
 	// printf("timestamp: %lld\n", payload.telemetry.timestamp);
+	#endif
     payload.telemetry.latitude = latitude;
     payload.telemetry.longitude = longitude;
     payload.telemetry.altitude_agl = altitude_agl;
@@ -159,7 +165,7 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
     payload.telemetry.flight_state = flight_state;
 	payload.telemetry.battery_voltage = (float)psu_read_battery_voltage();
 	#ifdef LORA_DEBUG
-	printf("Battery voltage: %f\n", payload.telemetry.battery_voltage);
+	// printf("Battery voltage: %f\n", payload.telemetry.battery_voltage);
 	#endif
 
     return payload;
@@ -245,17 +251,18 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 	switch (request_msg_type) {
 		case MSG_TYPE_REQ_TELEM: {
-			// printf("Received REQ_TELEM\n");
-			// printf("Received REQ_TELEM\n");
+			#ifdef LORA_DEBUG
+			printf("Received REQ_TELEM\n");
+			#endif
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_AUX_ACTIVATE: {
-			// printf("Received REQ_AUX_ACTIVATE\n");
-			turn_on_cameras();
-			// printf("Received REQ_AUX_ACTIVATE\n");
+			#ifdef LORA_DEBUG
+			printf("Received REQ_AUX_ACTIVATE\n");
+			#endif
 			turn_on_cameras();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
@@ -263,17 +270,19 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			break;
 		}
 		case MSG_TYPE_REQ_AUX_DEACTIVATE: {
+			#ifdef LORA_DEBUG
+			printf("Received REQ_AUX_DEACTIVATE\n");
+			#endif
 			turn_off_cameras();
-			// printf("Received REQ_AUX_DEACTIVATE\n");
-			turn_off_cameras();
-			// printf("Received REQ_AUX_DEACTIVATE\n");
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
 			break;
 		}
 		case MSG_TYPE_REQ_TXLOCK_ACTIVATE: {
-			// printf("Received REQ_TXLOCK_ACTIVATE\n");
+			#ifdef LORA_DEBUG
+			printf("Received REQ_TXLOCK_ACTIVATE\n");
+			#endif
 			TXLOCK = flash_prepare_for_flight();
 			bmp_aquire_ground();
 			flash_erase_jingle();
@@ -284,14 +293,16 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			break;
 		}
 		case MSG_TYPE_REQ_REBOOT: {
-			// printf("Received REQ_REBOOT\n");
-			// printf("Received REQ_REBOOT\n");
+			#ifdef LORA_DEBUG
+			printf("Received REQ_REBOOT\n");
+			#endif
 			esp_restart();
 			break;
 		}
 		case MSG_TYPE_REQ_PINGPONG: {
-			// printf("Received REQ_PINGPONG\n");
-			// printf("Received REQ_PINGPONG\n");
+			#ifdef LORA_DEBUG
+			printf("Received REQ_PINGPONG\n");
+			#endif
 			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
 			resp_msg_payload.single_byte.single_byte_payload = 0x01;
 			resp_msg_payload_len = 1;
@@ -329,18 +340,14 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 
 	if (resp_msg_payload_len != 0) {
 		resp = lora_create_packet(SLAVE_DEV_ID,0,0,0,resp_msg_cls,resp_msg_payload_len, &resp_msg_payload);
-		// printf("Created packet with the following parameters: \n");
-		// printf("MSG_CLS: 0x%X\n", resp_msg_cls);
-		// printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
-		// printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
-		// printf("DEV_ID: 0x%X\n", resp.DEV_ID);
-		// printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
-		// printf("Created packet with the following parameters: \n");
-		// printf("MSG_CLS: 0x%X\n", resp_msg_cls);
-		// printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
-		// printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
-		// printf("DEV_ID: 0x%X\n", resp.DEV_ID);
-		// printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);	
+		#ifdef LORA_DEBUG
+		printf("Created packet with the following parameters: \n");
+		printf("MSG_CLS: 0x%X\n", resp_msg_cls);
+		printf("PAYLOAD_SIZE: 0x%X\n", resp_msg_payload_len);
+		printf("SEQ_ID: 0x%X\n", resp.SEQ_ID);
+		printf("DEV_ID: 0x%X\n", resp.DEV_ID);
+		printf("DEV_MODE: 0x%X\n", resp.DEV_MODE);
+		#endif
 		
 	
 	resp.SEQ_ID = recv_packet.SEQ_ID;
