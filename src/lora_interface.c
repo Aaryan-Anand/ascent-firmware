@@ -111,7 +111,8 @@ void lora_queue_packet(goober_payload_t *payload) {
 }
 
 void lora_read_latest_queue_packet(goober_payload_t *payload) {
-	xQueueReceive(lora_packet_queue, payload, portMAX_DELAY);
+	// xQueueReceive(lora_packet_queue, payload, portMAX_DELAY);
+	xQueuePeek(lora_packet_queue, payload, portMAX_DELAY);
 }
 
 goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, float altitude_agl, float vertical_velocity, float x_acc, float eul_x, float eul_y, float eul_z, float gyr_x, uint8_t sats, uint8_t flight_state)
