@@ -38,8 +38,16 @@ void error_beep(void) {
     vTaskDelay(pdMS_TO_TICKS(25));
 }
 
+void wait_beep(void) {
+    note(NOTE_C, OCTAVE_5, 100);
+    vTaskDelay(pdMS_TO_TICKS(75));
+    note(NOTE_G, OCTAVE_4, 100);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+}
+
 // Helper function to play a note for a given duration factor (duration = factor * quarter note).
-void play_tone(note_t n, octave_t o, float factor) {
+static void play_tone(note_t n, octave_t o, float factor) {
     // Calculate the note duration in milliseconds
     uint32_t duration = (uint32_t)(QUARTER_NOTE_MS * factor);
     // Play the note (this function is assumed to drive the buzzer for "duration" ms)
@@ -49,7 +57,7 @@ void play_tone(note_t n, octave_t o, float factor) {
 }
 
 // Helper function for a rest (silence) lasting "factor" beats.
-void rest_tone(float factor) {
+static void rest_tone(float factor) {
     uint32_t duration = (uint32_t)(QUARTER_NOTE_MS * factor);
     vTaskDelay(pdMS_TO_TICKS(duration + GAP_MS));
 }
@@ -137,4 +145,11 @@ void megolavania(void) {
     
     // (Optionally add an ending rest)
     rest_tone(1.0);
+}
+
+void megolavania_task(void)
+{
+    while (1) {
+        megolavania();
+    }
 }

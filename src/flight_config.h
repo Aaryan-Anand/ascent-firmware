@@ -1,12 +1,15 @@
 #ifndef FLIGHT_CONFIG_H
 #define FLIGHT_CONFIG_H
 
-#define APOGEE_MIN 20
-#define MAINS_ALT 60
-#define POWERED_ALT 15
+#include "stdbool.h"
 
-// #define LED_PYRO 1
+#define IS_TWO_STAGE (true)
 
-// #define LIVE_VIDEO_PYRO_3 1
+#define APOGEE_MIN 500
+#define BOOSTER_MIN 300
+#define MAINS_ALT 1000
+#define POWERED_ALT 30
+
+#define PANIC_VEL (-180.0f/3.28)
 
 #endif

@@ -1,8 +1,13 @@
 idf_component_register(
     SRCS 
         "main.c"
-        "lora_task.c"
+        "globals.c"
         "beep.c"
         "sensor_manager.c"
-        "flightState_manager.c"
+        "lora_interface.c"
+        "flash_interface.c"
+        "baro.c"
+        "flight.c"
+        "sensor_fusion.c"
+        "orientation.c"
 )
