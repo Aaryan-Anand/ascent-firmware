@@ -9,4 +9,5 @@ idf_component_register(
         "baro.c"
         "flight.c"
         "sensor_fusion.c"
+        "orientation.c"
 )
