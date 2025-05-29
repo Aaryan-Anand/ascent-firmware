@@ -240,20 +240,6 @@ void app_main(void) {
     //     while (true) vTaskDelay(1000 / portTICK_PERIOD_MS);
     // }
 
-    // step 1
-    // flash_prepare_for_flight();
-    // while(true) vTaskDelay(1000/ portTICK_PERIOD_MS);
-
-    // step 2
-    // vTaskDelay(5000 / portTICK_PERIOD_MS);
-    
-    // step 3
-    // vTaskDelay(5000 / portTICK_PERIOD_MS);
-    // flash_dump_to_serial();
-
-
-
-
     // w25qxx_chip_erase();
 
     // beep battery voltage
