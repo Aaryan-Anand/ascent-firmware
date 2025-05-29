@@ -49,7 +49,7 @@ static tNeopixelContext neopixel;
 
 #include "sensor_fusion.h"
 
-#define GENERAL_DEBUG
+// #define GENERAL_DEBUG
 
 void validate_esp32(void);
 void init_boot_sequence(void);
@@ -191,7 +191,7 @@ Orientation get_mag_orientation_with_reference(float mag_x, float mag_y, float m
 
 
 TaskHandle_t primary_task_handle;
-#define PRIMARY_LOOP_FQ ((uint32_t)100)
+#define PRIMARY_LOOP_FQ ((uint32_t)50)
 #define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
 void primary_task(void *pvParameters) {
     uint32_t cycle = 0;
@@ -214,7 +214,7 @@ void primary_task(void *pvParameters) {
             GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
         }
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/50) == 0) {
+        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/PRIMARY_LOOP_FQ) == 0) {
 
             if (pyro_continuity(PYRO_CHANNEL_1)) {
                 pyro_arm |= (1);
@@ -251,8 +251,8 @@ void primary_task(void *pvParameters) {
             goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, gyr.x, numSV, current_flight_state);
             lora_queue_packet(&telemetry);
 
-            // if (is_tx_lock() && get_flight_state() != FS_LANDED) {
-            if (false) {
+            if (is_tx_lock() && get_flight_state() != FS_LANDED) {
+            // if (false) {
                 flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
                 flash_queue_packet(&fp);
             }
@@ -267,22 +267,22 @@ void primary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        #ifdef GENERAL_DEBUG
-        static float min_freq[20];
-        static int min_freq_index = 0;
+        // #ifdef GENERAL_DEBUG
+        // static float min_freq[20];
+        // static int min_freq_index = 0;
         float current_freq = 1.0f/(time_ms/1000.0f);
         
-        if (current_freq < PRIMARY_LOOP_FQ && min_freq_index < 20) {
-            min_freq[min_freq_index++] = current_freq;
-        }
+        // if (current_freq < PRIMARY_LOOP_FQ && min_freq_index < 20) {
+        //     min_freq[min_freq_index++] = current_freq;
+        // }
         
-       // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
+    //    printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
         //printf("[P] Min frequencies recorded: ");
-        for (int i = 0; i < min_freq_index; i++) {
+        // for (int i = 0; i < min_freq_index; i++) {
             //printf("%.2f ", min_freq[i]);
-        }
+        // }
         //printf("\n");
-        #endif
+        // #endif
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
@@ -320,9 +320,9 @@ void secondary_task(void *pvParameters) {
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
-        #ifdef GENERAL_DEBUG
-       // printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
-        #endif
+        // #ifdef GENERAL_DEBUG
+        // printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
+        // #endif
         // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
         // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
 
