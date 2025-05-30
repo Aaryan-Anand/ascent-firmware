@@ -47,33 +47,34 @@ void flight_update(
             }
 
             if (count >= 5) {
-                flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
-                count = 0;
-            }
-            break;
-
-        case FS_BOOSTER:
-            if (xacc < 0) {
-                flight_state = FS_COAST_BOOSTER;
-            }
-            break;
-
-        case FS_COAST_BOOSTER:
-            if (xacc > 3000) {
-                count++;
-            } else if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
-                deploy(APPO);
-                flight_state = FS_UNDER_DROGUES;
-            } else {
-                count = 0;
-            }
-            
-
-            if (count >= 5) {
+                // flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
                 flight_state = FS_SUSTAINER;
                 count = 0;
             }
             break;
+
+        // case FS_BOOSTER:
+        //     if (xacc < 0) {
+        //         flight_state = FS_COAST_BOOSTER;
+        //     }
+        //     break;
+
+        // case FS_COAST_BOOSTER:
+        //     if (xacc > 3000) {
+        //         count++;
+        //     } else if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
+        //         deploy(APPO);
+        //         flight_state = FS_UNDER_DROGUES;
+        //     } else {
+        //         count = 0;
+        //     }
+            
+
+        //     if (count >= 5) {
+        //         flight_state = FS_SUSTAINER;
+        //         count = 0;
+        //     }
+        //     break;
 
         case FS_SUSTAINER:
             if (xacc < 0) {
