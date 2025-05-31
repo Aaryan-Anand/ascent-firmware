@@ -3,7 +3,7 @@
 
 #include "stdbool.h"
 
-#define IS_TWO_STAGE (true)
+// #define IS_TWO_STAGE (true)
 
 #define APOGEE_MIN 500
 #define BOOSTER_MIN 300
