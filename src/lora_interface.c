@@ -72,6 +72,10 @@ void turn_on_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
 
+void turn_off_cameras(void) {
+    pyro_activate(PYRO_CHANNEL_4,0,1); 
+}
+
 void lora_flight_init()
 {
  	lora_init();
@@ -265,6 +269,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			printf("Received REQ_AUX_ACTIVATE\n");
 			#endif
 			turn_on_cameras();
+			turn_on_fan();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
@@ -275,6 +280,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			printf("Received REQ_AUX_DEACTIVATE\n");
 			#endif
 			turn_off_cameras();
+			turn_off_fan();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_msg_payload = telemetry;
 			resp_msg_payload_len = TELEM_PACKET_SIZE;
@@ -405,7 +411,7 @@ void slave_lora_task(goober_payload_t *telemetry)
 	}
 	else if (TXLOCK) {
 		goober_t TXLockPacket = lora_create_packet(SLAVE_DEV_ID,0,0,1,MSG_TYPE_POST_TELEM,TELEM_PACKET_SIZE, telemetry);
-		lora_transmit_packet(&TXLockPacket);
+		// lora_transmit_packet(&TXLockPacket);
 	}	
 }
 

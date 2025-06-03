@@ -156,7 +156,10 @@ void primary_task(void *pvParameters) {
         //     min_freq[min_freq_index++] = current_freq;
         // }
         
-    //    printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
+        // if (!under) {
+        //     printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
+        // }
+        // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
         //printf("[P] Min frequencies recorded: ");
         // for (int i = 0; i < min_freq_index; i++) {
             //printf("%.2f ", min_freq[i]);
