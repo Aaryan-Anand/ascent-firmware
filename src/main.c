@@ -58,6 +58,7 @@ void beep_pyro_cont(void);
 void turn_on_cameras(void);
 void turn_on_fan(void);
 void flash_erase_jingle(void);
+void fail_if_barometer_bad(void);
 
 void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, float *ekf_pitch, float *ekf_yaw, float *ekf_roll) {
     *ekf_latitude = 0.0f;
@@ -230,6 +231,8 @@ void app_main(void) {
 
     init_boot_sequence();
 
+    fail_if_barometer_bad();
+
     ascent_beep();
     
     get_initial_vectors();
@@ -380,5 +383,21 @@ void fail(int n)
             vTaskDelay(100/portTICK_PERIOD_MS);
         }
         vTaskDelay(2000/portTICK_PERIOD_MS);
+    }
+}
+
+void fail_if_barometer_bad() {
+    const int n = 100;
+    for (int i = 0; i < n; i++) {
+        baro_double_t baro_out;
+        bmp390_get_local(&baro_out);
+        printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        if (baro_out.pressure <= 0) {
+            while (true) {
+                error_beep();
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
