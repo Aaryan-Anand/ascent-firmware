@@ -102,5 +102,7 @@ void lora_queue_packet(goober_payload_t *payload);
 void lora_read_latest_queue_packet(goober_payload_t *payload);
 
 bool is_tx_lock();
+
+bool should_wake_up();
             
 #endif
