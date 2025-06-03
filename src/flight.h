@@ -13,6 +13,7 @@ enum FlightState
     FS_UNDER_DROGUES,
     FS_UNDER_MAINS,
     FS_LANDED,
+    FS_PREFLIGHT,
 };
 
 void flight_update(

@@ -83,11 +83,9 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
-
     while (1) {
         int64_t start_time = esp_timer_get_time();
-
-        uint8_t pyro_arm = 0;
+        uint8_t flight_state = get_flight_state();
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
             uint32_t UTCtstamp;
@@ -95,46 +93,45 @@ void primary_task(void *pvParameters) {
         }
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/PRIMARY_LOOP_FQ) == 0) {
+            uint8_t pyro_arm = 0;
+            if (pyro_continuity(PYRO_CHANNEL_1)) pyro_arm |= (1);
+            if (pyro_continuity(PYRO_CHANNEL_2)) pyro_arm |= (1 << 1);
+            if (pyro_continuity(PYRO_CHANNEL_3)) pyro_arm |= (1 << 2);
+            if (pyro_continuity(PYRO_CHANNEL_4)) pyro_arm |= (1 << 3);
 
-            if (pyro_continuity(PYRO_CHANNEL_1)) {
-                pyro_arm |= (1);
-            }
-            if (pyro_continuity(PYRO_CHANNEL_2)) {
-                pyro_arm |= (1 << 1);
-            }
-            if (pyro_continuity(PYRO_CHANNEL_3)) {
-                pyro_arm |= (1 << 2);
-            }
-            if (pyro_continuity(PYRO_CHANNEL_4)) {
-                pyro_arm |= (1 << 3);
-            }
+            // if we are in preflight or landed only send bare bones telemetry with continuity, voltage, and gps coords
+            if (flight_state == FS_PREFLIGHT || flight_state == FS_LANDED) {
+                uint8_t current_flight_state = get_flight_state();
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
+                lora_queue_packet(&telemetry);
+            } else { // if we are not in preflight or landed do all normal flight tasks
+                imu_raw_3d_t acc, gyr, mag;
+                imu_float_3d_t high_g_acc;
+                bno055_get_local(&acc, &gyr, &mag, false);
+                h3lis331dl_get_local(&high_g_acc, false);
+                
+                Orientation orient = get_mag_orientation_with_reference(mag.x, mag.y, mag.z);
+                
+                baro_double_t baro;
+                bmp390_get_local(&baro);
 
-            imu_raw_3d_t acc, gyr, mag;
-            imu_float_3d_t high_g_acc;
-            bno055_get_local(&acc, &gyr, &mag, false);
-            h3lis331dl_get_local(&high_g_acc, false);
-            
-            Orientation orient = get_mag_orientation_with_reference(mag.x, mag.y, mag.z);
-            
-            baro_double_t baro;
-            bmp390_get_local(&baro);
-
-            float barometric_agl;
-            float barometric_velocity;
-            float average_barometric_velocity;
-            baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
+                float barometric_agl;
+                float barometric_velocity;
+                float average_barometric_velocity;
+                baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
 
-            flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
+                flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
-            uint8_t current_flight_state = get_flight_state();
-            goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, gyr.x, numSV, current_flight_state);
-            lora_queue_packet(&telemetry);
+                uint8_t current_flight_state = get_flight_state();
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, gyr.x, numSV, current_flight_state);
+                lora_queue_packet(&telemetry);
 
-            if (is_tx_lock() && get_flight_state() != FS_LANDED) {
-            // if (false) {
-                flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
-                flash_queue_packet(&fp);
+                if (is_tx_lock() && get_flight_state() != FS_ON_PAD) {
+                // if (false) {
+                    flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                    flash_queue_packet(&fp);
+                }
             }
         }
 
@@ -143,7 +140,8 @@ void primary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < PRIMARY_LOOP_MAX_DT;
         if (under) {
-            ets_delay_us(PRIMARY_LOOP_MAX_DT-delta);
+            if (flight_state == FS_PREFLIGHT || flight_state == FS_LANDED) vTaskDelay(pdMS_TO_TICKS((PRIMARY_LOOP_MAX_DT-delta)/1e3));
+            else ets_delay_us(PRIMARY_LOOP_MAX_DT-delta);
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
@@ -197,9 +195,8 @@ void secondary_task(void *pvParameters) {
         long time_ms = delta/1e3;
         uint8_t under = (uint32_t)delta < SECONDARY_LOOP_MAX_DT;
         if (under) {
-            // portDISABLE_INTERRUPTS();
-            ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
-            // portENABLE_INTERRUPTS();
+            if (get_flight_state() == FS_PREFLIGHT) vTaskDelay(pdMS_TO_TICKS((SECONDARY_LOOP_MAX_DT-delta)/1e3));;
+            else ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
         }
         end_time = esp_timer_get_time();
         delta = end_time - start_time;
