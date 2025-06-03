@@ -335,6 +335,18 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			deploy(MAINS);
 			break;
 		}
+		case MSG_TYPE_REQ_WAKEUP: {
+			#ifdef LORA_DEBUG
+			printf("Received REQ_WAKEUP\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
+			resp_msg_payload.single_byte.single_byte_payload = 0x12;
+			resp_msg_payload_len = 1;
+
+			//WAKEUP LOGIC GOES HERE @worldwalker2000
+
+			break;
+		}
 		default: {
 			#ifdef LORA_DEBUG
 			printf("Unknown MSG_TYPE: 0x%X\n", request_msg_type);
