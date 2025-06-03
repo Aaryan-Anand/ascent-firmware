@@ -72,7 +72,7 @@ void turn_on_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
 
-void turn_off_cameras(void) {
+void turn_off_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
 
