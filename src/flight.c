@@ -5,8 +5,9 @@
 
 #include "flight_config.h"
 #include "driver_pyro.h"
+#include "lora_interface.h"
 
-static uint8_t flight_state = FS_ON_PAD;
+static uint8_t flight_state = FS_PREFLIGHT;
 
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
@@ -39,6 +40,12 @@ void flight_update(
     static int count = 0;
 
     switch (flight_state) {
+        case FS_PREFLIGHT:
+            if (is_tx_lock()) {
+                flight_state = FS_ON_PAD;
+            }
+            break;
+
         case FS_ON_PAD:
             if (xacc > 3000) {
                 count++;
@@ -47,34 +54,34 @@ void flight_update(
             }
 
             if (count >= 5) {
-                // flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
-                flight_state = FS_SUSTAINER;
+                flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
+                // flight_state = FS_SUSTAINER;
                 count = 0;
             }
             break;
 
-        // case FS_BOOSTER:
-        //     if (xacc < 0) {
-        //         flight_state = FS_COAST_BOOSTER;
-        //     }
-        //     break;
+        case FS_BOOSTER:
+            if (xacc < 0) {
+                flight_state = FS_COAST_BOOSTER;
+            }
+            break;
 
-        // case FS_COAST_BOOSTER:
-        //     if (xacc > 3000) {
-        //         count++;
-        //     } else if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
-        //         deploy(APPO);
-        //         flight_state = FS_UNDER_DROGUES;
-        //     } else {
-        //         count = 0;
-        //     }
+        case FS_COAST_BOOSTER:
+            if (xacc > 3000) {
+                count++;
+            } else if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
+                deploy(APPO);
+                flight_state = FS_UNDER_DROGUES;
+            } else {
+                count = 0;
+            }
             
 
-        //     if (count >= 5) {
-        //         flight_state = FS_SUSTAINER;
-        //         count = 0;
-        //     }
-        //     break;
+            if (count >= 5) {
+                flight_state = FS_SUSTAINER;
+                count = 0;
+            }
+            break;
 
         case FS_SUSTAINER:
             if (xacc < 0) {
