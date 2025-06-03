@@ -60,20 +60,13 @@ void turn_on_fan(void);
 void flash_erase_jingle(void);
 void fail_if_barometer_bad(void);
 
-void fake_ekf(float *ekf_latitude, float *ekf_longitude, float *ekf_altitude, float *ekf_pitch, float *ekf_yaw, float *ekf_roll) {
-    *ekf_latitude = 0.0f;
-    *ekf_longitude = 0.0f;
-    *ekf_altitude = 0.0f;
-    *ekf_pitch = 0.0f;
-    *ekf_yaw = 0.0f;
-    *ekf_roll = 0.0f;
-}
-
-
 TaskHandle_t primary_task_handle;
 #define PRIMARY_LOOP_FQ ((uint32_t)50)
-#define PRIMARY_LOOP_MAX_DT ((uint32_t)1e6)/PRIMARY_LOOP_FQ
+#define PRIMARY_LOOP_MAX_DT (1000/PRIMARY_LOOP_FQ)
 void primary_task(void *pvParameters) {
+    const TickType_t xFrequency = pdMS_TO_TICKS(PRIMARY_LOOP_MAX_DT);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
     uint32_t cycle = 0;
 
     int32_t lon;
@@ -84,7 +77,6 @@ void primary_task(void *pvParameters) {
     uint8_t numSV;  
 
     while (1) {
-        int64_t start_time = esp_timer_get_time();
         uint8_t flight_state = get_flight_state();
 
         if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
@@ -135,51 +127,21 @@ void primary_task(void *pvParameters) {
             }
         }
 
-        int64_t end_time = esp_timer_get_time();
-        int64_t delta = end_time - start_time;
-        long time_ms = delta/1e3;
-        uint8_t under = (uint32_t)delta < PRIMARY_LOOP_MAX_DT;
-        if (under) {
-            if (flight_state == FS_PREFLIGHT || flight_state == FS_LANDED) vTaskDelay(pdMS_TO_TICKS((PRIMARY_LOOP_MAX_DT-delta)/1e3));
-            else ets_delay_us(PRIMARY_LOOP_MAX_DT-delta);
-        }
-        end_time = esp_timer_get_time();
-        delta = end_time - start_time;
-        // #ifdef GENERAL_DEBUG
-        // static float min_freq[20];
-        // static int min_freq_index = 0;
-        float current_freq = 1.0f/(time_ms/1000.0f);
-        
-        // if (current_freq < PRIMARY_LOOP_FQ && min_freq_index < 20) {
-        //     min_freq[min_freq_index++] = current_freq;
-        // }
-        
-        // if (!under) {
-        //     printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
-        // }
-        // printf("[P] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, current_freq, under);
-        //printf("[P] Min frequencies recorded: ");
-        // for (int i = 0; i < min_freq_index; i++) {
-            //printf("%.2f ", min_freq[i]);
-        // }
-        //printf("\n");
-        // #endif
-        // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-        // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
-
         cycle = (cycle + 1) % PRIMARY_LOOP_FQ;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
 TaskHandle_t secondary_task_handle;
 #define SECONDARY_LOOP_FQ ((uint32_t)20)
-#define SECONDARY_LOOP_MAX_DT ((uint32_t)1e6)/SECONDARY_LOOP_FQ
+#define SECONDARY_LOOP_MAX_DT (1000/SECONDARY_LOOP_FQ)
 void secondary_task(void *pvParameters) {
-   uint32_t cycle = 0;
+    const TickType_t xFrequency = pdMS_TO_TICKS(SECONDARY_LOOP_MAX_DT);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    uint32_t cycle = 0;
 
     while (1) {
-        int64_t start_time = esp_timer_get_time();
-
         if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
             goober_payload_t telemetry;
             lora_read_latest_queue_packet(&telemetry);
@@ -190,23 +152,8 @@ void secondary_task(void *pvParameters) {
             flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
         }
 
-        int64_t end_time = esp_timer_get_time();
-        int64_t delta = end_time - start_time;
-        long time_ms = delta/1e3;
-        uint8_t under = (uint32_t)delta < SECONDARY_LOOP_MAX_DT;
-        if (under) {
-            if (get_flight_state() == FS_PREFLIGHT) vTaskDelay(pdMS_TO_TICKS((SECONDARY_LOOP_MAX_DT-delta)/1e3));;
-            else ets_delay_us(SECONDARY_LOOP_MAX_DT-delta);
-        }
-        end_time = esp_timer_get_time();
-        delta = end_time - start_time;
-        // #ifdef GENERAL_DEBUG
-        // printf("[S] Delta: %" PRId64 "us or %ldms or %f Hz. under? %d (want: 1)\n", delta, time_ms, 1.0f/(time_ms/1000.0f), under);
-        // #endif
-        // if (under) neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
-        // else neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
-
         cycle = (cycle + 1) % SECONDARY_LOOP_FQ;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 
