@@ -346,12 +346,12 @@ void init_boot_sequence(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     // Set origin vectors during boot sequence
-    // printf("Setting origin vectors...\n");
-    // if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
-    //     printf("Origin vectors set successfully\n");
-    // } else {
-    //     printf("Warning: Failed to set origin vectors\n");
-    // }
+    printf("Setting origin vectors...\n");
+    if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
+        printf("Origin vectors set successfully\n");
+    } else {
+        printf("Warning: Failed to set origin vectors\n");
+    }
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);
