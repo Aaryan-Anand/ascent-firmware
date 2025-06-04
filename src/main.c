@@ -422,6 +422,7 @@ void low_power_mode_no_gps(void) {
     bmp390_set_pwr_ctrl(&bmp_ctl);
     vTaskDelay(pdMS_TO_TICKS(1));
 
+    bno_setoprmode(CONFIG);
     bno_setpowermode(SUSPEND);
     vTaskDelay(pdMS_TO_TICKS(1));
 
@@ -443,7 +444,9 @@ void high_power_mode(void) {
     bmp390_set_pwr_ctrl(&bmp_ctl);
     vTaskDelay(pdMS_TO_TICKS(1));
 
+    bno_setoprmode(CONFIG);
     bno_setpowermode(NORMAL);
+    bno_setoprmode(AMG);
     vTaskDelay(pdMS_TO_TICKS(1));
 
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
