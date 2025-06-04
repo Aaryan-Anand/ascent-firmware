@@ -29,6 +29,7 @@ static tNeopixelContext neopixel;
 #include "driver_psu.h"
 #include "driver_psu.h"
 #include "driver_bno055.h"
+#include "driver_BMP390L.h"
 #include "driver_w25qxx.h"
 #include "driver/gpio.h"
 
@@ -47,6 +48,7 @@ static tNeopixelContext neopixel;
 #include "baro.h"
 #include "flight.h"
 #include "orientation.h"
+#include "accl.h"
 
 #include "sensor_fusion.h"
 
@@ -60,11 +62,17 @@ void turn_on_fan(void);
 void flash_erase_jingle(void);
 void fail_if_barometer_bad(void);
 
+void update_loop_rate(void);
+void low_power_mode_no_gps(void);
+void low_power_mode(void);
+void high_power_mode(void);
+
+uint8_t calc_pyro_arm(void);
+
 TaskHandle_t primary_task_handle;
-#define PRIMARY_LOOP_FQ ((uint32_t)50)
-#define PRIMARY_LOOP_MAX_DT (1000/PRIMARY_LOOP_FQ)
+int primary_loop_fq = 50;
+TickType_t xFrequency_primary;
 void primary_task(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(PRIMARY_LOOP_MAX_DT);
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     uint32_t cycle = 0;
@@ -79,30 +87,41 @@ void primary_task(void *pvParameters) {
     while (1) {
         uint8_t flight_state = get_flight_state();
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/10) == 0) {
-            uint32_t UTCtstamp;
-            GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
-        }
+        // we are not using a switch case here since we want to be able to declare variables within the different state handlers
+        // I know that you can do things like an an empty statement but that is weird
 
-        if (cycle % (uint32_t)(PRIMARY_LOOP_FQ/PRIMARY_LOOP_FQ) == 0) {
-            uint8_t pyro_arm = 0;
-            if (pyro_continuity(PYRO_CHANNEL_1)) pyro_arm |= (1);
-            if (pyro_continuity(PYRO_CHANNEL_2)) pyro_arm |= (1 << 1);
-            if (pyro_continuity(PYRO_CHANNEL_3)) pyro_arm |= (1 << 2);
-            if (pyro_continuity(PYRO_CHANNEL_4)) pyro_arm |= (1 << 3);
-
-            // if we are in preflight or landed only send bare bones telemetry with continuity, voltage, and gps coords
-            if (flight_state == FS_PREFLIGHT || flight_state == FS_LANDED) {
+        // when in preflight state we do nothing but send the battery voltage
+        if (flight_state == FS_PREFLIGHT) {
+            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
                 uint8_t current_flight_state = get_flight_state();
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
+                goober_payload_t telemetry = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
                 lora_queue_packet(&telemetry);
-            } else { // if we are not in preflight or landed do all normal flight tasks
-                imu_raw_3d_t acc, gyr, mag;
+
+                // we still need to call flight_update to get out of preflight so we just call it with all zeros
+                if (flight_update(0, 0, 0, 0)) {
+                    update_loop_rate();
+                    // since the only way to get out of preflight is to wakeup the board here we switch out of low power mode.
+                    high_power_mode();
+                }
+            }
+        } else if (flight_state != FS_LANDED) {
+            // for all other states that are not preflight and landed we want to be running at full tilt running all flight tasks
+            // the loop will now be running at 50 Hz
+
+            // read the GPS at 10 Hz
+            if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
+                uint32_t UTCtstamp;
+                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+            }
+
+            // read all sensors and send data to secondary task
+            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+                imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
                 imu_float_3d_t high_g_acc;
-                bno055_get_local(&acc, &gyr, &mag, false);
+                bno055_get_local(&raw_acc, &raw_gyr, &raw_mag, false);
                 h3lis331dl_get_local(&high_g_acc, false);
                 
-                Orientation orient = get_mag_orientation_with_reference(mag.x, mag.y, mag.z);
+                Orientation orient = get_mag_orientation_with_reference(raw_mag.x, raw_mag.y, raw_mag.z);
                 
                 baro_double_t baro;
                 bmp390_get_local(&baro);
@@ -112,48 +131,73 @@ void primary_task(void *pvParameters) {
                 float average_barometric_velocity;
                 baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
+                imu_raw_3d_t acc;
+                accl_update(raw_acc, &acc);
 
-                flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x);
 
-                uint8_t current_flight_state = get_flight_state();
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, gyr.x, numSV, current_flight_state);
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
+                    // if the flight state changes we may need to update the loop rates
+                    // the loop rates will only change if we go into landed
+                    update_loop_rate();
+
+                    // if we just went into landed power down everything except GPS
+                    if (get_flight_state() == FS_LANDED) {
+                        low_power_mode_no_gps();
+                    }
+                }
+
+                // always queue up latest telemetry for secondary task
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, raw_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
-                if (is_tx_lock() && get_flight_state() != FS_ON_PAD) {
-                // if (false) {
-                    flash_packet fp = {0, esp_timer_get_time(), pyro_arm, acc, gyr, mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
+                if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
+                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), raw_acc, raw_gyr, raw_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
                     flash_queue_packet(&fp);
                 }
             }
+        } else {
+            // this is the FS_LANDED case
+            // here we slow down and just transmit GPS coordinates
+            // here the loop rate is 2 Hz
+
+            // since the fq is just 2 Hz just poll the gps as fast as the loop goes
+            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+                uint32_t UTCtstamp;
+                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
+                lora_queue_packet(&telemetry);
+            }
         }
 
-        cycle = (cycle + 1) % PRIMARY_LOOP_FQ;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        // advance our cycle counter for subsampling tasks
+        cycle = (cycle + 1) % primary_loop_fq;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_primary);
     }
 }
 
 TaskHandle_t secondary_task_handle;
-#define SECONDARY_LOOP_FQ ((uint32_t)20)
-#define SECONDARY_LOOP_MAX_DT (1000/SECONDARY_LOOP_FQ)
+int secondary_loop_fq = 20;
+TickType_t xFrequency_secondary;
 void secondary_task(void *pvParameters) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(SECONDARY_LOOP_MAX_DT);
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     uint32_t cycle = 0;
 
     while (1) {
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
+        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
             goober_payload_t telemetry;
             lora_read_latest_queue_packet(&telemetry);
             slave_lora_task(&telemetry);
         }
 
-        if (cycle % (uint32_t)(SECONDARY_LOOP_FQ/20) == 0) {
-            flash_write_queue(SECONDARY_LOOP_MAX_DT/2);
+        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+            flash_write_queue(1000/secondary_loop_fq*1e3/2);
         }
 
-        cycle = (cycle + 1) % SECONDARY_LOOP_FQ;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        cycle = (cycle + 1) % secondary_loop_fq;
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_secondary);
     }
 }
 
@@ -182,23 +226,24 @@ void app_main(void) {
 
     ascent_beep();
     
-    get_initial_vectors();
-
-    // if (psu_read_battery_voltage() < 6) {
-    //     flash_dump_to_serial();
-
-    //     while (true) vTaskDelay(1000 / portTICK_PERIOD_MS);
-    // }
-
     // w25qxx_chip_erase();
 
-    // beep battery voltage
+    get_initial_vectors();
+
+    // w25qxx_chip_erase();
 
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
 
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    update_loop_rate();
+
+    // bring the board into low power mode and wait for the wake up signal
+    low_power_mode();
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
@@ -317,22 +362,6 @@ void beep_pyro_cont(void) {
     }
 }
 
-void fail(int n)
-{
-    while (1) {
-        #ifdef GENERAL_DEBUG
-        printf("FAIL STATE %d\n", n);
-        #endif
-        for (int i = 0; i < n; i++) {
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
-            vTaskDelay(100/portTICK_PERIOD_MS);
-            neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
-            vTaskDelay(100/portTICK_PERIOD_MS);
-        }
-        vTaskDelay(2000/portTICK_PERIOD_MS);
-    }
-}
-
 void fail_if_barometer_bad() {
     const int n = 100;
     for (int i = 0; i < n; i++) {
@@ -347,4 +376,72 @@ void fail_if_barometer_bad() {
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+}
+
+void update_loop_rate(void) {
+    uint8_t flight_state = get_flight_state();
+
+    switch (flight_state) {
+        case FS_PREFLIGHT:
+        case FS_LANDED:
+            primary_loop_fq = 2;
+            secondary_loop_fq = 10;
+            break;
+
+        default:
+            primary_loop_fq = 50;
+            secondary_loop_fq = 20;
+            break;        
+    }
+
+    xFrequency_primary = pdMS_TO_TICKS(1000/primary_loop_fq);
+    xFrequency_secondary = pdMS_TO_TICKS(1000/secondary_loop_fq);
+}
+
+void low_power_mode_no_gps(void) {
+    bmp390_pwr_ctrl_t bmp_ctl;
+    bmp_ctl.press_en = true;
+    bmp_ctl.temp_en = true;
+    bmp_ctl.mode = BMP390_MODE_SLEEP;
+    bmp390_set_pwr_ctrl(&bmp_ctl);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    bno_setpowermode(SUSPEND);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    h3lis331dl_set_power_mode(H3LIS331DL_LOW_POWER_0_5HZ);
+    vTaskDelay(pdMS_TO_TICKS(1));
+}
+
+void low_power_mode(void) {
+    low_power_mode_no_gps();
+
+    // TODO: GPS low power
+}
+
+void high_power_mode(void) {
+    bmp390_pwr_ctrl_t bmp_ctl;
+    bmp_ctl.press_en = true;
+    bmp_ctl.temp_en = true;
+    bmp_ctl.mode = BMP390_MODE_NORMAL;
+    bmp390_set_pwr_ctrl(&bmp_ctl);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    bno_setpowermode(NORMAL);
+    vTaskDelay(pdMS_TO_TICKS(1));
+
+    h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
+    vTaskDelay(pdMS_TO_TICKS(1));
+    
+    // TODO: gps high power
+}
+
+uint8_t calc_pyro_arm(void) {
+    uint8_t pyro_arm = 0;
+    if (pyro_continuity(PYRO_CHANNEL_1)) pyro_arm |= (1);
+    if (pyro_continuity(PYRO_CHANNEL_2)) pyro_arm |= (1 << 1);
+    if (pyro_continuity(PYRO_CHANNEL_3)) pyro_arm |= (1 << 2);
+    if (pyro_continuity(PYRO_CHANNEL_4)) pyro_arm |= (1 << 3);
+
+    return pyro_arm;
 }

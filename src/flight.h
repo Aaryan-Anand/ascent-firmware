@@ -2,6 +2,7 @@
 #define FLIGHT_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 enum FlightState
 {
@@ -16,7 +17,8 @@ enum FlightState
     FS_PREFLIGHT,
 };
 
-void flight_update(
+// returns if the state changed or not
+bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
@@ -24,5 +26,7 @@ void flight_update(
 );
 
 uint8_t get_flight_state(void);
+
+const char* get_flight_state_name(void);
 
 #endif
