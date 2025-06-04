@@ -151,8 +151,8 @@ bool flight_update(
                 count1 = 0;
             }
 
-            // again for 3 seconds
-            if (count1 >= 150) {
+            // for 6 seconds
+            if (count1 >= 300) {
                 flight_state = FS_LANDED;
             }
             break;
