@@ -67,6 +67,10 @@ void low_power_mode_no_gps(void);
 void low_power_mode(void);
 void high_power_mode(void);
 
+// from lora_interface.c
+void turn_off_cameras(void);
+void turn_off_fan(void);
+
 uint8_t calc_pyro_arm(void);
 
 TaskHandle_t primary_task_handle;
@@ -143,6 +147,8 @@ void primary_task(void *pvParameters) {
                     // if we just went into landed power down everything except GPS
                     if (get_flight_state() == FS_LANDED) {
                         low_power_mode_no_gps();
+                        turn_off_cameras();
+                        turn_off_fan();
                     }
                 }
 
