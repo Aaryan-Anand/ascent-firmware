@@ -231,6 +231,13 @@ void app_main(void) {
     fail_if_barometer_bad();
 
     ascent_beep();
+
+    serial_util_init();
+
+    // try to go into data dumping mode
+    // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
+    // if they do this it will dump all data
+    try_to_dump_data();
     
     // w25qxx_chip_erase();
 
@@ -450,4 +457,20 @@ uint8_t calc_pyro_arm(void) {
     if (pyro_continuity(PYRO_CHANNEL_4)) pyro_arm |= (1 << 3);
 
     return pyro_arm;
+}
+
+void try_to_dump_data() {
+    printf("You have 5 seconds to enter \"DUMP\" to enter data dumping mode\n");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    char buf[512];
+    int i = 0;
+    while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+        if (strcmp("DUMP", buf) == 0) {
+            flash_dump_to_serial();
+            for (int j = 0; j < 3; j++) {
+                flash_erase_jingle();
+                vTaskDelay(pdMS_TO_TICKS(500));
+            }
+        }
+    }
 }
