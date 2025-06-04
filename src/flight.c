@@ -13,8 +13,6 @@ static uint8_t flight_state = FS_PREFLIGHT;
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
 
-void turn_off_cameras(void);
-
 static bool deploy(pyro_channel_t channel)
 {
     bool cont;
@@ -32,13 +30,17 @@ static bool deploy(pyro_channel_t channel)
     return false;
 }
 
+// VS code may say that this is an error bc it can't see APPO_GS but it will compile
+#define APPO_COND (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
+
 bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
     float xacc
 ) {
-    static int count = 0;
+    static int count1 = 0;
+    static int count2 = 0;
 
     uint8_t pre = flight_state;
 
@@ -50,50 +52,70 @@ bool flight_update(
             break;
 
         case FS_ON_PAD:
-            if (xacc > 3000) {
-                count++;
+            if (xacc > ENGINE_GS) {
+                count1++;
             } else {
-                count = 0;
+                count1 = 0;
             }
 
-            if (count >= 5 && is_tx_lock()) {
+            if (count1 >= 5) {
                 flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
-                // flight_state = FS_SUSTAINER;
-                count = 0;
             }
             break;
 
         case FS_BOOSTER:
             if (xacc < 0) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (count1 >= 5) {
                 flight_state = FS_COAST_BOOSTER;
             }
             break;
 
         case FS_COAST_BOOSTER:
-            if (xacc > 3000) {
-                count++;
-            } else if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
+            if (xacc > ENGINE_GS) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (APPO_COND) {
+                count2++;
+            } else {
+                count2 = 0;
+            }
+
+            if (count2 >= 5) {
                 deploy(APPO);
                 flight_state = FS_UNDER_DROGUES;
-            } else {
-                count = 0;
-            }
-            
-
-            if (count >= 5) {
+            } else if (count1 >= 5) {
                 flight_state = FS_SUSTAINER;
-                count = 0;
             }
             break;
 
         case FS_SUSTAINER:
             if (xacc < 0) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (count1 >= 5) {
                 flight_state = FS_COAST_SUSTAINER;
             }
             break;
 
         case FS_COAST_SUSTAINER:
-            if (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < 100) {
+            if (APPO_COND) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (count1 >= 5) {
                 deploy(APPO);
                 flight_state = FS_UNDER_DROGUES;
             }
@@ -101,34 +123,51 @@ bool flight_update(
 
         case FS_UNDER_DROGUES:
             if (average_barometric_velocity < PANIC_VEL) {
-                count++;
+                count1++;
             } else {
-                count = 0;
+                count1 = 0;
             }
 
-            if (barometric_agl < MAINS_ALT || count >= 2) {
+            if (barometric_agl < MAINS_ALT) {
+                count2++;
+            } else {
+                count2 = 0;
+            }
+
+            // at 50 Hz dt = 0.02 thus 3 seconds is 150 counts as 3/0.02=150
+            // we wait 3 seconds so that the raven which has a 2 second delay
+            // has a chance to try and pull the drouges out
+            // the normal mains condition must be true for 0.1 seconds
+            if (count1 >= 150 || count2 >= 5) {
                 deploy(MAINS);
                 flight_state = FS_UNDER_MAINS;
             }
             break;
 
         case FS_UNDER_MAINS:
-            if (fabs(average_barometric_velocity) < 5) {
-                count++;
+            if (barometric_agl < 50 && fabs(average_barometric_velocity) < 2) {
+                count1++;
             } else {
-                count = 0;
+                count1 = 0;
             }
 
-            if (count >= 5) {
+            // again for 3 seconds
+            if (count1 >= 150) {
                 flight_state = FS_LANDED;
             }
             break;
 
         case FS_LANDED:
-            turn_off_cameras();
             break;
 
         default: break;
+    }
+
+    // reset the counters if we changed flight states
+    // the next state needs to have the counters at zero
+    if (flight_state != pre) {
+        count1 = 0;
+        count2 = 0;
     }
 
     return flight_state != pre;
