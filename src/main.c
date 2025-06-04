@@ -53,6 +53,9 @@ static tNeopixelContext neopixel;
 
 #include "sensor_fusion.h"
 
+#include "sitl.h"
+#include "flight_config.h"
+
 // #define GENERAL_DEBUG
 
 void validate_esp32(void);
@@ -94,6 +97,11 @@ void primary_task(void *pvParameters) {
     while (1) {
         uint8_t flight_state = get_flight_state();
 
+        // this does a non blocking read on the serial monitor to get the two
+        // most recent data points
+#ifdef IS_SITL
+        sitl_update();
+#endif
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
         // I know that you can do things like an an empty statement but that is weird
 
@@ -125,13 +133,21 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
                 imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
                 imu_float_3d_t high_g_acc;
+#ifdef IS_SITL
+                raw_acc.x = get_current_vertical_accl();
+#else
                 bno055_get_local(&raw_acc, &raw_gyr, &raw_mag, false);
+#endif
                 h3lis331dl_get_local(&high_g_acc, false);
                 
                 Orientation orient = get_mag_orientation_with_reference(raw_mag.x, raw_mag.y, raw_mag.z);
                 
                 baro_double_t baro;
+#ifdef IS_SITL
+                baro.alt = get_current_baro_alt();
+#else
                 bmp390_get_local(&baro);
+#endif
 
                 float barometric_agl;
                 float barometric_velocity;
@@ -241,6 +257,10 @@ void app_main(void) {
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
     try_to_dump_data();
+
+#ifdef IS_SITL
+    sitl_init();
+#endif
     
     // w25qxx_chip_erase();
 

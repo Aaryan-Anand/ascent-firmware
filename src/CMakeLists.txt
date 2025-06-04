@@ -12,4 +12,5 @@ idf_component_register(
         "orientation.c"
         "accl.c"
         "serial_util.c"
+        "sitl.c"
 )

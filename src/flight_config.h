@@ -3,6 +3,8 @@
 
 #include "stdbool.h"
 
+#define IS_SITL
+
 // Note all values are in m or m/s
 
 #define IS_TWO_STAGE (true)
