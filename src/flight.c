@@ -8,6 +8,7 @@
 #include "lora_interface.h"
 
 static uint8_t flight_state = FS_PREFLIGHT;
+// static uint8_t flight_state = FS_ON_PAD;
 
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
@@ -31,7 +32,7 @@ static bool deploy(pyro_channel_t channel)
     return false;
 }
 
-void flight_update(
+bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
@@ -39,9 +40,11 @@ void flight_update(
 ) {
     static int count = 0;
 
+    uint8_t pre = flight_state;
+
     switch (flight_state) {
         case FS_PREFLIGHT:
-            if (is_tx_lock()) {
+            if (should_wake_up()) {
                 flight_state = FS_ON_PAD;
             }
             break;
@@ -53,7 +56,7 @@ void flight_update(
                 count = 0;
             }
 
-            if (count >= 5) {
+            if (count >= 5 && is_tx_lock()) {
                 flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
                 // flight_state = FS_SUSTAINER;
                 count = 0;
@@ -127,8 +130,25 @@ void flight_update(
 
         default: break;
     }
+
+    return flight_state != pre;
 }
 
 uint8_t get_flight_state(void) {
     return flight_state;
+}
+
+const char* get_flight_state_name(void) {
+    switch (flight_state) {
+    case FS_ON_PAD: return "FS_ON_PAD";
+    case FS_BOOSTER: return "FS_BOOSTER";
+    case FS_COAST_BOOSTER: return "FS_COAST_BOOSTER";
+    case FS_SUSTAINER: return "FS_SUSTAINER";
+    case FS_COAST_SUSTAINER: return "FS_COAST_SUSTAINER";
+    case FS_UNDER_DROGUES: return "FS_UNDER_DROGUES";
+    case FS_UNDER_MAINS: return "FS_UNDER_MAINS";
+    case FS_LANDED: return "FS_LANDED";
+    case FS_PREFLIGHT: return "FS_PREFLIGHT";
+    }
+    return "UNKNOWN";
 }

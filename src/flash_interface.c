@@ -11,6 +11,7 @@
 #include "freertos/semphr.h"
 #include "ascent_r2_hardware_definition.h"
 #include <rom/ets_sys.h>
+#include "beep.h"
 
 #define MAX_SECTORS 16384
 #define FLIGHT_LOG_START_ADDR 4096
@@ -51,7 +52,13 @@ void flash_flight_init(void)
     uint8_t res;
 
     res = w25qxx_init();
-    if (res) fail(FAIL_FLASH_INIT);
+    if (res) {
+        for (int i = 0; i < 3; i++) {
+            error_beep();
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        esp_restart();
+    }
 
     addr = sub_addr = FLIGHT_LOG_START_ADDR;
 
@@ -73,7 +80,7 @@ bool flash_prepare_for_flight(void) {
     // if (res) fail_state(FAIL_FLASH_CHIP_ERASE);
 
     for (int i = 0; i < n; i++) {
-        printf("Erasing %d/%ld\n", i, n);
+        printf("Erasing %d/%ld\n", (i+1), n);
         res = w25qxx_sector_erase(i*4096);
         if (res) return false;
     }

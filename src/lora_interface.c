@@ -425,7 +425,7 @@ void slave_lora_task(goober_payload_t *telemetry)
 	}
 	else if (TXLOCK) {
 		goober_t TXLockPacket = lora_create_packet(SLAVE_DEV_ID,0,0,1,MSG_TYPE_POST_TELEM,TELEM_PACKET_SIZE, telemetry);
-		// lora_transmit_packet(&TXLockPacket);
+		lora_transmit_packet(&TXLockPacket);
 	}	
 }
 

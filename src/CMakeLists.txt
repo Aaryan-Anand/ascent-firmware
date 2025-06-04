@@ -10,4 +10,5 @@ idf_component_register(
         "flight.c"
         "sensor_fusion.c"
         "orientation.c"
+        "accl.c"
 )
