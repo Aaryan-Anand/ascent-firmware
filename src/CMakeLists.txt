@@ -11,4 +11,5 @@ idf_component_register(
         "sensor_fusion.c"
         "orientation.c"
         "accl.c"
+        "serial_util.c"
 )

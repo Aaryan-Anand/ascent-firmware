@@ -49,6 +49,7 @@ static tNeopixelContext neopixel;
 #include "flight.h"
 #include "orientation.h"
 #include "accl.h"
+#include "serial_util.h"
 
 #include "sensor_fusion.h"
 
@@ -72,6 +73,8 @@ void turn_off_cameras(void);
 void turn_off_fan(void);
 
 uint8_t calc_pyro_arm(void);
+
+void try_to_dump_data();
 
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
