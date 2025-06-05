@@ -7,8 +7,8 @@
 #include "driver_pyro.h"
 #include "lora_interface.h"
 
-static uint8_t flight_state = FS_PREFLIGHT;
-// static uint8_t flight_state = FS_ON_PAD;
+// static uint8_t flight_state = FS_PREFLIGHT;
+static uint8_t flight_state = FS_ON_PAD;
 
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
@@ -58,7 +58,9 @@ bool flight_update(
                 count1 = 0;
             }
 
-            if (count1 >= 5) {
+            if (!should_wake_up()) {
+                flight_state = FS_PREFLIGHT;
+            } else if (count1 >= 5) {
                 flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
             }
             break;
@@ -168,6 +170,8 @@ bool flight_update(
     if (flight_state != pre) {
         count1 = 0;
         count2 = 0;
+
+        printf("Changing flight state, now: %s\n", get_flight_state_name());
     }
 
     return flight_state != pre;

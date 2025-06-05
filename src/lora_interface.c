@@ -26,7 +26,7 @@ static bool TXLOCK = false;
 static bool CAMERA_ACTIVE = false;
 
 _Atomic bool thread_safe_txlock = false;
-_Atomic bool thread_safe_should_wakeup = false;
+_Atomic bool thread_safe_should_wakeup = true;
 
 QueueHandle_t lora_packet_queue;
 
@@ -342,7 +342,8 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			resp_msg_payload_len = 1;
 
 			//WAKEUP LOGIC GOES HERE @worldwalker2000
-			atomic_store(&thread_safe_should_wakeup, true);
+			bool value = atomic_load(&thread_safe_should_wakeup);
+			atomic_store(&thread_safe_should_wakeup, !value);
 
 			break;
 		}
