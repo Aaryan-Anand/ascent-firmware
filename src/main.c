@@ -108,15 +108,20 @@ void primary_task(void *pvParameters) {
         // when in preflight state we do nothing but send the battery voltage
         if (flight_state == FS_PREFLIGHT) {
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+                // in pre flight we still want to know that the gps works so just poll it at 1 Hz
+                uint32_t UTCtstamp;
+                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+
                 uint8_t current_flight_state = get_flight_state();
                 goober_payload_t telemetry = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
                 lora_queue_packet(&telemetry);
 
                 // we still need to call flight_update to get out of preflight so we just call it with all zeros
                 if (flight_update(0, 0, 0, 0)) {
-                    update_loop_rate();
-                    // since the only way to get out of preflight is to wakeup the board here we switch out of low power mode.
-                    high_power_mode();
+                    if (get_flight_state() == FS_ON_PAD) {
+                        update_loop_rate();
+                        high_power_mode();
+                    }
                 }
             }
         } else if (flight_state != FS_LANDED) {
@@ -140,7 +145,8 @@ void primary_task(void *pvParameters) {
 #endif
                 h3lis331dl_get_local(&high_g_acc, false);
                 
-                Orientation orient = get_mag_orientation_with_reference(raw_mag.x, raw_mag.y, raw_mag.z);
+                Orientation orient = {0};
+                // Orientation orient = get_mag_orientation_with_reference(raw_mag.x, raw_mag.y, raw_mag.z);
                 
                 baro_double_t baro;
 #ifdef IS_SITL
@@ -162,6 +168,10 @@ void primary_task(void *pvParameters) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
+
+                    if (get_flight_state() == FS_PREFLIGHT) {
+                        low_power_mode();
+                    }
 
                     // if we just went into landed power down everything except GPS
                     if (get_flight_state() == FS_LANDED) {
@@ -247,6 +257,17 @@ void app_main(void) {
 
     init_boot_sequence();
 
+    /*{
+        // Set origin vectors during boot sequence
+        printf("Setting origin vectors...\n");
+        if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
+            printf("Origin vectors set successfully\n");
+        } else {
+            printf("Warning: Failed to set origin vectors\n");
+        }
+        get_initial_vectors();
+    }*/
+
     fail_if_barometer_bad();
 
     ascent_beep();
@@ -264,22 +285,16 @@ void app_main(void) {
     
     // w25qxx_chip_erase();
 
-    get_initial_vectors();
-
-    // w25qxx_chip_erase();
-
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
 
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
+    high_power_mode();
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
     update_loop_rate();
-
-    // bring the board into low power mode and wait for the wake up signal
-    low_power_mode();
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
@@ -375,14 +390,6 @@ void init_boot_sequence(void) {
     flash_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    // Set origin vectors during boot sequence
-    printf("Setting origin vectors...\n");
-    if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
-        printf("Origin vectors set successfully\n");
-    } else {
-        printf("Warning: Failed to set origin vectors\n");
-    }
-
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
@@ -420,7 +427,7 @@ void update_loop_rate(void) {
     switch (flight_state) {
         case FS_PREFLIGHT:
         case FS_LANDED:
-            primary_loop_fq = 2;
+            primary_loop_fq = 1;
             secondary_loop_fq = 10;
             break;
 
@@ -435,6 +442,8 @@ void update_loop_rate(void) {
 }
 
 void low_power_mode_no_gps(void) {
+    printf("Entering low power mode with out gps.\n");
+
     bmp390_pwr_ctrl_t bmp_ctl;
     bmp_ctl.press_en = true;
     bmp_ctl.temp_en = true;
@@ -442,6 +451,7 @@ void low_power_mode_no_gps(void) {
     bmp390_set_pwr_ctrl(&bmp_ctl);
     vTaskDelay(pdMS_TO_TICKS(1));
 
+    bno_setoprmode(CONFIG);
     bno_setpowermode(SUSPEND);
     vTaskDelay(pdMS_TO_TICKS(1));
 
@@ -450,12 +460,16 @@ void low_power_mode_no_gps(void) {
 }
 
 void low_power_mode(void) {
+    printf("Entering low power mode.\n");
+
     low_power_mode_no_gps();
 
     // TODO: GPS low power
 }
 
 void high_power_mode(void) {
+    printf("Entering high power mode.\n");
+
     bmp390_pwr_ctrl_t bmp_ctl;
     bmp_ctl.press_en = true;
     bmp_ctl.temp_en = true;
@@ -463,7 +477,9 @@ void high_power_mode(void) {
     bmp390_set_pwr_ctrl(&bmp_ctl);
     vTaskDelay(pdMS_TO_TICKS(1));
 
+    bno_setoprmode(CONFIG);
     bno_setpowermode(NORMAL);
+    bno_setoprmode(AMG);
     vTaskDelay(pdMS_TO_TICKS(1));
 
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);

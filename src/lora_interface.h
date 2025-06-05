@@ -5,7 +5,7 @@
 #include "stdint.h"
 #include "lora.h"
 
-#define LORA_FREQ 900e6
+#define LORA_FREQ 902.15e6
 
 // ONE BYTE MESSAGE PAYLOADS
  
@@ -52,7 +52,7 @@ typedef struct {
     uint8_t pyro_state;        // 1 byte
     uint8_t sats;              // 1 byte
     uint8_t flight_state;      // 1 byte
-    float battery_voltage;     // 4 bytes
+    uint32_t battery_voltage;     // 4 bytes
 } goober_post_telemetry_payload_t; // total: 51 bytes
 
 typedef struct {
