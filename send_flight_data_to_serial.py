@@ -44,7 +44,9 @@ while i < len(rows)-1:
     b = rows[i+1]
 
     alt = a[B] + (b[B] - a[B])/(b[T] - a[T]) * (now()-a[T])
-    accl = (a[A] + (b[A] - a[A])/(b[T] - a[T]) * (now()-a[T]))*1000
+    # accl = (a[A] + (b[A] - a[A])/(b[T] - a[T]) * (now()-a[T]))*1000
+    accl = a[A]*1000
+    print(accl)
 
     while ser.in_waiting > 0:
         print(ser.read(ser.in_waiting).decode("utf-8"))  # Clear input buffer

@@ -21,7 +21,7 @@ float vert_accl;
 char buf[BUF_SIZE];
 
 void sitl_init() {
-    lora_sitl_fake_tx_lock();
+    // lora_sitl_fake_tx_lock();
 
     start_time = esp_timer_get_time();
 
@@ -44,7 +44,7 @@ void sitl_update() {
 }
 
 int16_t get_current_vertical_accl() {
-    return vert_accl;
+    return vert_accl > 32767 ? 32700 : vert_accl;
 }
 
 double get_current_baro_alt() {

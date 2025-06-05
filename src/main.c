@@ -136,10 +136,11 @@ void primary_task(void *pvParameters) {
 
             // read all sensors and send data to secondary task
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
-                imu_float_3d_t high_g_acc;
+                imu_raw_3d_t raw_acc = {0}, raw_gyr = {0}, raw_mag = {0};
+                imu_float_3d_t high_g_acc = {0};
 #ifdef IS_SITL
                 raw_acc.x = get_current_vertical_accl();
+                printf("Serial: %d\n", raw_acc.x);
 #else
                 bno055_get_local(&raw_acc, &raw_gyr, &raw_mag, false);
 #endif
