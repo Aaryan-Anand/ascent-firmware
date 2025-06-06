@@ -275,7 +275,7 @@ void app_main(void) {
     update_loop_rate();
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
-
+    printf("Creating tasks\n");
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
 
@@ -368,7 +368,7 @@ void init_boot_sequence(void) {
     flash_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  0) } }, 1);
+    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  255) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
@@ -451,14 +451,16 @@ void high_power_mode(void) {
     bmp390_pwr_ctrl_t bmp_ctl;
     bmp_ctl.press_en = true;
     bmp_ctl.temp_en = true;
-    bmp_ctl.mode = BMP390_MODE_NORMAL;
+    bmp_ctl.mode = BMP390_MODE_FORCED;
     bmp390_set_pwr_ctrl(&bmp_ctl);
     vTaskDelay(pdMS_TO_TICKS(1));
 
     bno_setoprmode(CONFIG);
+    vTaskDelay(pdMS_TO_TICKS(10));
     bno_setpowermode(NORMAL);
+    vTaskDelay(pdMS_TO_TICKS(10));
     bno_setoprmode(AMG);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
     vTaskDelay(pdMS_TO_TICKS(1));
