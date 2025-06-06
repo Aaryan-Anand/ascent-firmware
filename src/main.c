@@ -45,10 +45,8 @@ static tNeopixelContext neopixel;
 #include "fail.h"
 #include "lora_interface.h"
 #include "flash_interface.h"
-#include "baro.h"
 #include "flight.h"
-#include "orientation.h"
-#include "accl.h"
+#include "sensor_fusion.h"
 #include "serial_util.h"
 
 #include "sensor_fusion.h"
