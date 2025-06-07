@@ -2,14 +2,72 @@
 
 #include "math.h"
 #include "beep.h"
+#include "stdio.h"
 
-// Lazy-initialized function to provide initial reference vectors
-const initial_vectors_t* get_initial_vectors() {
-    static initial_vectors_t init_vectors;
+void vector_to_dcs(const imu_local_3d_t* vector, dcs_3d_t* dcs) {
+    // Calculate vector magnitude
+    float norm = sqrtf(vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
+    
+    if (norm > 0.0f) {
+        // Normalize to get direction cosines
+        dcs->x = vector->x / norm;
+        dcs->y = vector->y / norm;
+        dcs->z = vector->z / norm;
+    } else {
+        // Handle zero vector case
+        dcs->x = 0.0f;
+        dcs->y = 0.0f;
+        dcs->z = 0.0f;
+    }
+}
+
+void dcs_to_degrees(const dcs_3d_t* dcs, orientation_t* orientation, dcs_type_t dcs_type) {
+    // Calculate angles relative to X-axis (1,0,0)
+    // Roll is rotation around X axis (longitudinal)
+    orientation->roll = (dcs_type == DCS_TYPE_ACC) ? 0.0f : atan2f(dcs->y, dcs->z) * 180.0f / M_PI;
+    
+    // Pitch is rotation around Y axis (lateral)
+    orientation->pitch = atan2f(-dcs->x, 
+                               sqrtf(dcs->y * dcs->y + dcs->z * dcs->z)) * 180.0f / M_PI;
+    
+    // Yaw is rotation around Z axis (vertical at launch)
+    orientation->yaw = atan2f(dcs->y, dcs->x) * 180.0f / M_PI;
+
+    // Apply dcs-specific adjustments
+    switch (dcs_type) {
+        case DCS_TYPE_ACC:
+            // For accelerometer: adjust pitch and normalize yaw to -180 to +180
+            orientation->pitch += 90.0f;
+            if (orientation->yaw > 180.0f) {
+                orientation->yaw -= 360.0f;
+            }
+            break;
+            
+        case DCS_TYPE_MAG:
+            // For magnetometer: normalize yaw to 0 to 360
+            if (orientation->yaw < 0) {
+                orientation->yaw += 360.0f;
+            }
+            break;
+            
+        case DCS_TYPE_NULL:
+        default:
+            // No special handling for NULL type
+            break;
+    }
+}
+
+float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+// Lazy-initialized function to provide initial reference direction cosines
+const reference_dcs_t* get_initial_vectors() {
+    static reference_dcs_t init_reference;
     static bool initialized = false;
 
     if (!initialized) {
-        imu_raw_3d_t acc, gyr, mag;
+        imu_local_3d_t acc, gyr, mag;
         float acc_sum;
         uint8_t acc_wait_count = 0;
 
@@ -18,7 +76,7 @@ const initial_vectors_t* get_initial_vectors() {
             bno055_get_local(&acc, &gyr, &mag, false);
             acc_sum = sqrtf(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
 
-            if (fabsf(acc_sum - 1000.0f) <= 100.0f) {
+            if (fabsf(acc_sum - 9.81f) <= 0.1f) {
                 printf("Accelerometer validated: %.1f mg\n", acc_sum);
                 break;
             }
@@ -32,80 +90,56 @@ const initial_vectors_t* get_initial_vectors() {
 
         // Final reading with calibration ON
         bno055_get_local(&acc, &gyr, &mag, true);
-
-        init_vectors.acc = acc;
-        init_vectors.mag = mag;
+        SCALE_MAG_VECTORS(&mag);
+        // Convert accelerometer vector to direction cosines
+        vector_to_dcs(&acc, &init_reference.gravity);
+        
+        // Convert magnetic vector to direction cosines
+        vector_to_dcs(&mag, &init_reference.magnetic);
+        
         initialized = true;
 
-        printf("Initial reference set.\n");
-        printf("Gravity: [%.2d, %.2d, %.2d] mg\n", acc.x, acc.y, acc.z);
-        printf("Magnetic: [%.2d, %.2d, %.2d] uT\n", mag.x, mag.y, mag.z);
+        printf("Initial reference direction cosines set.\n");
+        printf("Gravity direction cosines: [%.3f, %.3f, %.3f]\n", 
+               init_reference.gravity.x, init_reference.gravity.y, init_reference.gravity.z);
+        printf("Magnetic direction cosines: [%.3f, %.3f, %.3f]\n", 
+               init_reference.magnetic.x, init_reference.magnetic.y, init_reference.magnetic.z);
     }
 
-    return &init_vectors;
+    return &init_reference;
 }
 
-Orientation get_mag_orientation_with_reference(float mag_x, float mag_y, float mag_z) {
-    Orientation o;
+void get_mag_orientation(imu_local_3d_t* mag, dcs_3d_t* body_relative_dcs, orientation_t* orientation) {
+    dcs_3d_t current_mag_dcs;
+    const reference_dcs_t* ref = get_initial_vectors();
 
-    const initial_vectors_t* init = get_initial_vectors();
-    imu_raw_3d_t acc = init->acc;
-    imu_raw_3d_t mag_ref = init->mag;
+    // Scale magnetometer vectors if enabled
+    SCALE_MAG_VECTORS(mag);
 
-    // Normalize current magnetic field
-    float mag_norm = sqrtf(mag_x * mag_x + mag_y * mag_y + mag_z * mag_z);
-    if (mag_norm == 0.0f) {
-        o.roll = o.pitch = o.yaw = 0.0f;
-        return o;
-    }
-    float m_x = mag_x / mag_norm;
-    float m_y = mag_y / mag_norm;
-    float m_z = mag_z / mag_norm;
+    // Convert current magnetic vector to direction cosines
+    vector_to_dcs(mag, &current_mag_dcs);
 
-    // Normalize reference gravity vector (Z axis)
-    float g_norm = sqrtf(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
-    float z_x = acc.x / g_norm;
-    float z_y = acc.y / g_norm;
-    float z_z = acc.z / g_norm;
+    // Calculate relative magnetic direction cosines by subtracting reference
+    body_relative_dcs->x = current_mag_dcs.x - ref->magnetic.x;
+    body_relative_dcs->y = current_mag_dcs.y - ref->magnetic.y;
+    body_relative_dcs->z = current_mag_dcs.z - ref->magnetic.z;
 
-    // Normalize reference magnetic field
-    float n_norm = sqrtf(mag_ref.x * mag_ref.x + mag_ref.y * mag_ref.y + mag_ref.z * mag_ref.z);
-    float n_x = mag_ref.x / n_norm;
-    float n_y = mag_ref.y / n_norm;
-    float n_z = mag_ref.z / n_norm;
+    // Add gravity reference to get final orientation
+    body_relative_dcs->x -= ref->gravity.x;
+    body_relative_dcs->y -= ref->gravity.y;
+    body_relative_dcs->z -= ref->gravity.z;
 
-    // Project magnetic North onto the horizontal plane (orthogonal to gravity) → X axis
-    float dot_ng = n_x * z_x + n_y * z_y + n_z * z_z;
-    float x_x = n_x - dot_ng * z_x;
-    float x_y = n_y - dot_ng * z_y;
-    float x_z = n_z - dot_ng * z_z;
 
-    float x_norm = sqrtf(x_x * x_x + x_y * x_y + x_z * x_z);
-    if (x_norm == 0.0f) {
-        o.roll = o.pitch = o.yaw = 0.0f;
-        return o;
-    }
-    x_x /= x_norm;
-    x_y /= x_norm;
-    x_z /= x_norm;
+    // Convert direction cosines to orientation angles (using magnetometer mode)
+    dcs_to_degrees(body_relative_dcs, orientation, DCS_TYPE_MAG);
+}
 
-    // Y axis = Z × X
-    float y_x = z_y * x_z - z_z * x_y;
-    float y_y = z_z * x_x - z_x * x_z;
-    float y_z = z_x * x_y - z_y * x_x;
-
-    // Project current magnetic field into this reference frame
-    float fwd   = m_x * x_x + m_y * x_y + m_z * x_z;  // forward
-    float left  = m_x * y_x + m_y * y_y + m_z * y_z;  // left
-    float down  = m_x * z_x + m_y * z_y + m_z * z_z;  // down
-
-    // Orientation angles in launch reference frame
-    o.yaw   = atan2f(left, fwd) * 180.0f / M_PI;
-    o.pitch = atan2f(-down, sqrtf(fwd * fwd + left * left)) * 180.0f / M_PI;
-    o.roll  = atan2f(left, down) * 180.0f / M_PI;  // Approximate roll
-
-    // Normalize yaw to 0–360
-    if (o.yaw < 0) o.yaw += 360.0f;
-
-    return o;
+void get_acc_orientation(const imu_local_3d_t* acc, orientation_t* orientation) {
+    dcs_3d_t acc_dcs;
+    
+    // Convert accelerometer vector to direction cosines
+    vector_to_dcs(acc, &acc_dcs);
+    
+    // Convert direction cosines to orientation angles (using accelerometer mode)
+    dcs_to_degrees(&acc_dcs, orientation, DCS_TYPE_ACC);
 }
