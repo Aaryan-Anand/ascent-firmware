@@ -126,24 +126,31 @@ void primary_task(void *pvParameters) {
 
             // read all sensors and send data to secondary task
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                imu_raw_3d_t raw_acc, raw_gyr, raw_mag;
+                imu_local_3d_t local_acc, local_gyr, local_mag;
                 imu_float_3d_t high_g_acc;
-                bno055_get_local(&raw_acc, &raw_gyr, &raw_mag, false);
+                dcs_3d_t body_relative_dcs;
+                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
                 h3lis331dl_get_local(&high_g_acc, false);
                 
-                Orientation orient = {0};
-                // Orientation orient = get_mag_orientation_with_reference(raw_mag.x, raw_mag.y, raw_mag.z);
-                
+                orientation_t orient;
+                //get_acc_orientation(&local_acc, &orient);
                 baro_double_t baro;
                 bmp390_get_local(&baro);
+
+                //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
+                printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
+                //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
+                get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
+                printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
+                printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
 
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
                 baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
 
-                imu_raw_3d_t acc;
-                accl_update(raw_acc, &acc);
+                imu_local_3d_t acc;
+                accl_update(local_acc, &acc);
 
 
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
@@ -164,12 +171,12 @@ void primary_task(void *pvParameters) {
                 }
 
                 // always queue up latest telemetry for secondary task
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, raw_gyr.x, numSV, flight_state);
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), raw_acc, raw_gyr, raw_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), local_acc, local_gyr, local_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
                     flash_queue_packet(&fp);
                 }
             }
@@ -239,16 +246,9 @@ void app_main(void) {
 
     init_boot_sequence();
 
-    /*{
-        // Set origin vectors during boot sequence
-        printf("Setting origin vectors...\n");
-        if (set_origin_state_vectors(NULL)) {  // NULL since we're using internal static variable
-            printf("Origin vectors set successfully\n");
-        } else {
-            printf("Warning: Failed to set origin vectors\n");
-        }
-        get_initial_vectors();
-    }*/
+    // Set origin vectors during boot sequence
+    printf("Setting attitude vectors...\n");
+    get_initial_vectors();
 
     fail_if_barometer_bad();
 
@@ -259,7 +259,7 @@ void app_main(void) {
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
-    try_to_dump_data();
+    //try_to_dump_data();
     
     // w25qxx_chip_erase();
 

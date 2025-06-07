@@ -172,10 +172,10 @@ void lis331_flight_init(){
 #include "stdbool.h"
 
 static const float alpha = 0.1;
-static imu_raw_3d_t acc;
+static imu_local_3d_t acc;
 static bool initialized = false;
 
-void accl_update(imu_raw_3d_t new, imu_raw_3d_t* out) {
+void accl_update(imu_local_3d_t new, imu_local_3d_t* out) {
     if (!initialized) {
         acc = new;
         initialized = true;

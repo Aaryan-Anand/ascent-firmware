@@ -11,7 +11,7 @@ typedef struct {
     int64_t timestamp;
     uint8_t pyro_arm;
 
-    imu_raw_3d_t acc, gyr, mag;
+    imu_local_3d_t acc, gyr, mag;
     imu_float_3d_t high_g_acc;
     baro_double_t baro;
 
