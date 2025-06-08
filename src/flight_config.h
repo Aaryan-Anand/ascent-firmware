@@ -7,8 +7,8 @@
 
 #define IS_TWO_STAGE (true)
 
-#define ENGINE_GS 3000
-#define APPO_GS 500
+#define ENGINE_GS (9.81*3)
+#define APPO_GS (9.81/2)
 
 #define APOGEE_MIN 500
 
