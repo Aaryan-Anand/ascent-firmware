@@ -77,13 +77,13 @@ const reference_dcs_t* get_initial_vectors() {
             acc_sum = sqrtf(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z);
 
             if (fabsf(acc_sum - 9.81f) <= 0.1f) {
-                printf("Accelerometer validated: %.1f mg\n", acc_sum);
+                printf("Accelerometer validated: %.1f m/s^2\n", acc_sum);
                 break;
             }
 
             error_beep();
             if (++acc_wait_count > 40) {
-                printf("Warning: Accelerometer not stable, vector sum: %.1f mg\n", acc_sum);
+                printf("Warning: Accelerometer not stable, vector sum: %.1f m/s^2\n", acc_sum);
                 break;
             }
         }
