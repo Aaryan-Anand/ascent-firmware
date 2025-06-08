@@ -171,7 +171,7 @@ void lis331_flight_init(){
 
 #include "stdbool.h"
 
-static const float alpha = 0.1;
+static const float alpha = 0.1f;
 static imu_local_3d_t acc;
 static bool initialized = false;
 
@@ -181,9 +181,9 @@ void accl_update(imu_local_3d_t new, imu_local_3d_t* out) {
         initialized = true;
     }
 
-    acc.x = (int16_t)((float) acc.x*alpha + (float) new.x*(1-alpha));
-    acc.y = (int16_t)((float) acc.y*alpha + (float) new.y*(1-alpha));
-    acc.z = (int16_t)((float) acc.z*alpha + (float) new.z*(1-alpha));
+    acc.x = acc.x * alpha + new.x * (1.0f - alpha);
+    acc.y = acc.y * alpha + new.y * (1.0f - alpha);
+    acc.z = acc.z * alpha + new.z * (1.0f - alpha);
 
     *out = acc;
 }

@@ -7,6 +7,8 @@
 
 #define LORA_FREQ 928e6
 
+//#define LORA_DEBUG
+
 // ONE BYTE MESSAGE PAYLOADS
  
 #define REQ_PINGPONG         0xFF  // Expect POST_PINGPONG
