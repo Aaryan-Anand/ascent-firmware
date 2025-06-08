@@ -438,10 +438,10 @@ void low_power_mode_no_gps(void) {
 
 void low_power_mode(void) {
     printf("Entering low power mode.\n");
+    
+    GPS_low_power_mode();
 
     low_power_mode_no_gps();
-
-    // TODO: GPS low power
 }
 
 void high_power_mode(void) {
@@ -464,7 +464,7 @@ void high_power_mode(void) {
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
     vTaskDelay(pdMS_TO_TICKS(1));
     
-    // TODO: gps high power
+    GPS_high_power_mode();
 }
 
 uint8_t calc_pyro_arm(void) {
