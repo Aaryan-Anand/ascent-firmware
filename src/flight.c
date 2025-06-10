@@ -61,12 +61,27 @@ bool flight_update(
             if (!should_wake_up()) {
                 flight_state = FS_PREFLIGHT;
             } else if (count1 >= 5) {
-                flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
+                flight_state = FE_LIFTOFF;
             }
+            break;
+        case FE_LIFTOFF:
+            flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
             break;
 
         case FS_BOOSTER:
             if (xacc < 0) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (count1 >= 5) {
+                flight_state = FE_BURNOUT_BOOSTER;
+            }
+            break;
+
+        case FE_BURNOUT_BOOSTER:
+            if (xacc > ENGINE_GS) {
                 count1++;
             } else {
                 count1 = 0;
@@ -92,8 +107,19 @@ bool flight_update(
 
             if (count2 >= 5) {
                 deploy(APPO);
-                flight_state = FS_UNDER_DROGUES;
+                flight_state = FE_APOGEE;
             } else if (count1 >= 5) {
+                flight_state = FE_STAGE_SEPARATION;
+            }
+            break;
+        case FE_STAGE_SEPARATION:
+            if (xacc > ENGINE_GS) {
+                count1++;
+            } else {
+                count1 = 0;
+            }
+
+            if (count1 >= 5) {
                 flight_state = FS_SUSTAINER;
             }
             break;
@@ -105,6 +131,12 @@ bool flight_update(
                 count1 = 0;
             }
 
+            if (count1 >= 5) {
+                flight_state = FE_BURNOUT_SUSTAINER;
+            }
+            break;
+
+        case FE_BURNOUT_SUSTAINER:
             if (count1 >= 5) {
                 flight_state = FS_COAST_SUSTAINER;
             }
@@ -119,9 +151,14 @@ bool flight_update(
 
             if (count1 >= 5) {
                 deploy(APPO);
-                flight_state = FS_UNDER_DROGUES;
+                flight_state = FE_APOGEE;
             }
             break;
+
+        case FE_APOGEE:
+            break;
+            
+            
 
         case FS_UNDER_DROGUES:
             if (average_barometric_velocity < PANIC_VEL) {
@@ -142,10 +179,17 @@ bool flight_update(
             // the normal mains condition must be true for 0.1 seconds
             if (count1 >= 150 || count2 >= 5) {
                 deploy(MAINS);
-                flight_state = FS_UNDER_MAINS;
+                flight_state = FE_PANIC;
+            }else if(count2 >= 5) {
+                flight_state = FE_MAIN;
             }
             break;
-
+        case FE_MAIN:
+            flight_state = FS_UNDER_MAINS;
+            break;
+        case FE_PANIC:
+            flight_state = FS_UNDER_MAINS;
+            break;
         case FS_UNDER_MAINS:
             if (barometric_agl < 50 && fabs(average_barometric_velocity) < 2) {
                 count1++;
@@ -155,10 +199,12 @@ bool flight_update(
 
             // for 6 seconds
             if (count1 >= 300) {
-                flight_state = FS_LANDED;
+                flight_state = FE_GROUND_HIT;
             }
             break;
-
+        case FE_GROUND_HIT:
+            flight_state = FS_LANDED;
+            break;
         case FS_LANDED:
             break;
 
