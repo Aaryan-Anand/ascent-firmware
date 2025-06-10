@@ -10,6 +10,7 @@ typedef struct {
     uint32_t n;
     int64_t timestamp;
     uint8_t pyro_arm;
+    uint8_t flight_state;
 
     imu_local_3d_t acc, gyr, mag;
     imu_float_3d_t high_g_acc;
