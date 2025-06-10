@@ -31,7 +31,7 @@ static bool deploy(pyro_channel_t channel)
 }
 
 // VS code may say that this is an error bc it can't see APPO_GS but it will compile
-#define APPO_COND (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
+#define APO_COND (average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
 
 bool flight_update(
     float barometric_agl,
@@ -47,8 +47,12 @@ bool flight_update(
     switch (flight_state) {
         case FS_PREFLIGHT:
             if (should_wake_up()) {
-                flight_state = FS_ON_PAD;
+                flight_state = FE_WAKE;
             }
+            break;
+
+        case FE_WAKE:
+            flight_state = FS_ON_PAD;
             break;
 
         case FS_ON_PAD:
@@ -59,10 +63,13 @@ bool flight_update(
             }
 
             if (!should_wake_up()) {
-                flight_state = FS_PREFLIGHT;
+                flight_state = FE_SLEEP;
             } else if (count1 >= 5) {
                 flight_state = FE_LIFTOFF;
             }
+            break;
+        case FE_SLEEP:
+            flight_state = FS_ON_PAD;
             break;
         case FE_LIFTOFF:
             flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
@@ -99,7 +106,7 @@ bool flight_update(
                 count1 = 0;
             }
 
-            if (APPO_COND) {
+            if (APO_COND) {
                 count2++;
             } else {
                 count2 = 0;
@@ -126,70 +133,101 @@ bool flight_update(
 
         case FS_SUSTAINER:
             if (xacc < 0) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
                 flight_state = FE_BURNOUT_SUSTAINER;
             }
             break;
 
         case FE_BURNOUT_SUSTAINER:
-            if (count1 >= 5) {
+            count1++;
+            if (count1 >= 3 && xacc < 0) {
                 flight_state = FS_COAST_SUSTAINER;
+            }
+            else if (xacc > 0) {
+                flight_state = FS_SUSTAINER;
             }
             break;
 
         case FS_COAST_SUSTAINER:
-            if (APPO_COND) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
-                deploy(APPO);
+            if (APO_COND) {
                 flight_state = FE_APOGEE;
             }
             break;
 
         case FE_APOGEE:
+            count1++;
+            if (APO_COND && count1 >= 5) {
+                deploy(APPO);
+                flight_state = FE_DROGUES_DEPLOYED;
+            }
+            else if (count1 >= 150 && barometric_velocity < 0){
+                flight_state = FE_DROGUES_DEPLOYED;
+                deploy(APPO);
+            }
             break;
             
             
 
-        case FS_UNDER_DROGUES:
-            if (average_barometric_velocity < PANIC_VEL) {
+        case FE_DROGUES_DEPLOYED:
+            //waiting for charge exhaust to drain from components through depressurization
+            count1++;
+            if(count1 >= 5){
+                if (average_barometric_velocity > DROGUE_DESCENT) {
+                    count2++;
+                }
+                else if (average_barometric_velocity < PANIC_VEL) {
+                    count1++;
+                } else {
+                    count1 = 0;
+                }
+
+                // at 50 Hz dt = 0.02 thus 3 seconds is 150 counts as 3/0.02=150
+                // we wait 3 seconds so that the raven which has a 2 second delay
+                // has a chance to try and pull the drouges out
+                // the normal mains condition must be true for 0.1 seconds
+                if (count1 >= 150 || count2 >= 5) {
+                    flight_state = FE_PANIC;
+                }
+                else if (count2 >= 5) {
+                    flight_state = FS_UNDER_DROGUES;
+                }
+                break;
+
+
+            case FS_UNDER_DROGUES:
+                
+                if (barometric_agl < MAINS_ALT) {
+                    count1++;
+                } else {
+                    count1 = 0;
+                }
+                if(count1 >= 5) {
+                    flight_state = FE_MAIN_DEPLOYED;
+                }
+
+            }    
+            break;
+
+        case FE_PANIC:
+           //PRAY TO GOD THAT THIS NEVER HAPPENS
+            deploy(MAINS);
+            flight_state = FE_MAIN_DEPLOYED;
+            break;
+                        
+        case FE_MAIN_DEPLOYED:
+            if (average_barometric_velocity > MAIN_DESCENT) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
-            if (barometric_agl < MAINS_ALT) {
-                count2++;
-            } else {
-                count2 = 0;
+            if (count1 >= 5) {
+                flight_state = FS_UNDER_MAINS;
             }
+            else{
+                break; //IF THIS HAPPENS, YOU'RE FUCKED
+            }
+            break;
 
-            // at 50 Hz dt = 0.02 thus 3 seconds is 150 counts as 3/0.02=150
-            // we wait 3 seconds so that the raven which has a 2 second delay
-            // has a chance to try and pull the drouges out
-            // the normal mains condition must be true for 0.1 seconds
-            if (count1 >= 150 || count2 >= 5) {
-                deploy(MAINS);
-                flight_state = FE_PANIC;
-            }else if(count2 >= 5) {
-                flight_state = FE_MAIN;
-            }
-            break;
-        case FE_MAIN:
-            flight_state = FS_UNDER_MAINS;
-            break;
-        case FE_PANIC:
-            flight_state = FS_UNDER_MAINS;
-            break;
         case FS_UNDER_MAINS:
             if (barometric_agl < 50 && fabs(average_barometric_velocity) < 2) {
                 count1++;
@@ -230,12 +268,21 @@ uint8_t get_flight_state(void) {
 const char* get_flight_state_name(void) {
     switch (flight_state) {
     case FS_ON_PAD: return "FS_ON_PAD";
+    case FE_LIFTOFF: return "FE_LIFTOFF";
     case FS_BOOSTER: return "FS_BOOSTER";
+    case FE_BURNOUT_BOOSTER: return "FE_BURNOUT_BOOSTER";
     case FS_COAST_BOOSTER: return "FS_COAST_BOOSTER";
+    case FE_STAGE_SEPARATION: return "FE_STAGE_SEPARATION";
     case FS_SUSTAINER: return "FS_SUSTAINER";
+    case FE_BURNOUT_SUSTAINER: return "FE_BURNOUT_SUSTAINER";
     case FS_COAST_SUSTAINER: return "FS_COAST_SUSTAINER";
+    case FE_APOGEE: return "FE_APOGEE";
+    case FE_DROGUES_DEPLOYED: return "FE_DROGUES_DEPLOYED";
     case FS_UNDER_DROGUES: return "FS_UNDER_DROGUES";
+    case FE_MAIN_DEPLOYED: return "FE_MAIN_DEPLOYED";
+    case FE_PANIC: return "FE_PANIC";
     case FS_UNDER_MAINS: return "FS_UNDER_MAINS";
+    case FE_GROUND_HIT: return "FE_GROUND_HIT";
     case FS_LANDED: return "FS_LANDED";
     case FS_PREFLIGHT: return "FS_PREFLIGHT";
     }

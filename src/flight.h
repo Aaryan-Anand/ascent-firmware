@@ -16,13 +16,17 @@ enum FlightState
     FE_BURNOUT_SUSTAINER,
     FS_COAST_SUSTAINER,
     FE_APOGEE,
+    FE_DROGUES_DEPLOYED,
     FS_UNDER_DROGUES,
     FE_PANIC,
-    FE_MAIN,
+    FE_MAIN_DEPLOYED,
     FS_UNDER_MAINS,
     FE_GROUND_HIT,
     FS_LANDED,
+    FE_SLEEP,
     FS_PREFLIGHT,
+    FE_WAKE,
+    //TODO: ADD FTS SAFE. FLIGHT TERMINATION SYSTEM IS REQUIRED. (jk lol)
 };
 
 // returns if the state changed or not
