@@ -175,7 +175,7 @@ void primary_task(void *pvParameters) {
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), local_acc, local_gyr, local_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), flight_state, local_acc, local_gyr, local_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
                     flash_queue_packet(&fp);
                 }
             }

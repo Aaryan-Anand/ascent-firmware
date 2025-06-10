@@ -39,6 +39,8 @@ bool flight_update(
     float average_barometric_velocity,
     float xacc
 ) {
+    // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
+
     static int count1 = 0;
     static int count2 = 0;
 

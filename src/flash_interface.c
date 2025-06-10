@@ -115,6 +115,7 @@ void flash_dump_to_serial(void) {
         printf("%lu,", fp.n);
         printf("%"PRId64",", fp.timestamp);
         printf("%d,", fp.pyro_arm);
+        printf("%d,", fp.flight_state);
 
         printf("%f,", fp.acc.x);
         printf("%f,", fp.acc.y);
