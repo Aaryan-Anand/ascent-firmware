@@ -16,4 +16,8 @@
 
 #define PANIC_VEL (-240.0f/3.28)
 
+#define DROGUE_DESCENT (-150.0f/3.28)
+
+#define MAIN_DESCENT (-30.0f/3.28)
+
 #endif
