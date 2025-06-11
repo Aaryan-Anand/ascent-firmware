@@ -115,18 +115,19 @@ void flash_dump_to_serial(void) {
         printf("%lu,", fp.n);
         printf("%"PRId64",", fp.timestamp);
         printf("%d,", fp.pyro_arm);
+        printf("%d,", fp.flight_state);
 
-        printf("%d,", fp.acc.x);
-        printf("%d,", fp.acc.y);
-        printf("%d,", fp.acc.z);
+        printf("%f,", fp.acc.x);
+        printf("%f,", fp.acc.y);
+        printf("%f,", fp.acc.z);
 
-        printf("%d,", fp.gyr.x);
-        printf("%d,", fp.gyr.y);
-        printf("%d,", fp.gyr.z);
+        printf("%f,", fp.gyr.x);
+        printf("%f,", fp.gyr.y);
+        printf("%f,", fp.gyr.z);
 
-        printf("%d,", fp.mag.x);
-        printf("%d,", fp.mag.y);
-        printf("%d,", fp.mag.z);
+        printf("%f,", fp.mag.x);
+        printf("%f,", fp.mag.y);
+        printf("%f,", fp.mag.z);
 
         printf("%f,", fp.high_g_acc.x);
         printf("%f,", fp.high_g_acc.y);
@@ -143,6 +144,8 @@ void flash_dump_to_serial(void) {
         printf("%f,", fp.latitude);
         printf("%f,", fp.longitude);
         printf("%lu,", fp.gps_altitude);
+
+        printf("%f,", fp.bat_voltage);
 
         printf("\n");
     }

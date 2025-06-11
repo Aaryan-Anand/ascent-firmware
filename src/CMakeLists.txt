@@ -6,11 +6,8 @@ idf_component_register(
         "sensor_manager.c"
         "lora_interface.c"
         "flash_interface.c"
-        "baro.c"
         "flight.c"
         "sensor_fusion.c"
-        "orientation.c"
-        "accl.c"
         "serial_util.c"
         "sitl.c"
 )

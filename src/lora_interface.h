@@ -5,7 +5,9 @@
 #include "stdint.h"
 #include "lora.h"
 
-#define LORA_FREQ 902.15e6
+#define LORA_FREQ 928e6
+
+//#define LORA_DEBUG
 
 // ONE BYTE MESSAGE PAYLOADS
  

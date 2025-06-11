@@ -10,8 +10,9 @@ typedef struct {
     uint32_t n;
     int64_t timestamp;
     uint8_t pyro_arm;
+    uint8_t flight_state;
 
-    imu_raw_3d_t acc, gyr, mag;
+    imu_local_3d_t acc, gyr, mag;
     imu_float_3d_t high_g_acc;
     baro_double_t baro;
 
@@ -22,6 +23,8 @@ typedef struct {
     float latitude;
     float longitude;
     uint32_t gps_altitude;
+
+    float bat_voltage;
 } flash_packet;
 
 uint32_t flash_get_addr();

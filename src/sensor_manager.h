@@ -65,7 +65,7 @@ esp_err_t bno_calib(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* 
 void lis331_calib(imu_float_3d_t* acc_out);
 
 // Add these declarations
-esp_err_t bno_local(imu_raw_3d_t* acc_out, imu_raw_3d_t* gyr_out, imu_raw_3d_t* mag_out, bool local_up_flipped);
+esp_err_t bno_local(imu_local_3d_t* acc_out, imu_local_3d_t* gyr_out, imu_local_3d_t* mag_out, bool local_up_flipped);
 void lis331_local(imu_float_3d_t* acc_out, bool local_up_flipped);
 
 /**
@@ -81,5 +81,12 @@ void bmp_calib(baro_double_t* baro_out);
  * @param baro_out Pointer to store altitude data in local reference frame
  */
 void bmp_local(baro_double_t* baro_out);
+
+
+void accl_update(imu_local_3d_t acc, imu_local_3d_t* out);
+
+
+void baro_update(const baro_double_t * const baro, float *agl, float *vel, float *avg_vel);
+
 
 #endif // SENSOR_MANAGER_H

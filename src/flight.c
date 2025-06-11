@@ -31,7 +31,7 @@ static bool deploy(pyro_channel_t channel)
 }
 
 // VS code may say that this is an error bc it can't see APPO_GS but it will compile
-#define APPO_COND (barometric_agl > APOGEE_MIN && average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
+#define APPO_COND (average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
 
 bool flight_update(
     float barometric_agl,
@@ -39,6 +39,8 @@ bool flight_update(
     float average_barometric_velocity,
     float xacc
 ) {
+    // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
+
     static int count1 = 0;
     static int count2 = 0;
 
@@ -58,10 +60,10 @@ bool flight_update(
                 count1 = 0;
             }
 
-            if (!should_wake_up()) {
-                flight_state = FS_PREFLIGHT;
-            } else if (count1 >= 5) {
+            if (count1 >= 5) {
                 flight_state = IS_TWO_STAGE ? FS_BOOSTER : FS_SUSTAINER;
+            } else if (!should_wake_up() && count1 == 0) {
+                flight_state = FS_PREFLIGHT;
             }
             break;
 
@@ -136,11 +138,7 @@ bool flight_update(
                 count2 = 0;
             }
 
-            // at 50 Hz dt = 0.02 thus 3 seconds is 150 counts as 3/0.02=150
-            // we wait 3 seconds so that the raven which has a 2 second delay
-            // has a chance to try and pull the drouges out
-            // the normal mains condition must be true for 0.1 seconds
-            if (count1 >= 150 || count2 >= 5) {
+            if (count1 >= 50 || count2 >= 5) {
                 deploy(MAINS);
                 flight_state = FS_UNDER_MAINS;
             }
