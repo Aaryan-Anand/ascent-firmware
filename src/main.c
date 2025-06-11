@@ -62,7 +62,6 @@ void fail_if_barometer_bad(void);
 
 void update_loop_rate(void);
 void low_power_mode_no_gps(void);
-void low_power_mode(void);
 void high_power_mode(void);
 
 // from lora_interface.c
@@ -158,7 +157,7 @@ void primary_task(void *pvParameters) {
                     update_loop_rate();
 
                     if (get_flight_state() == FS_PREFLIGHT) {
-                        low_power_mode();
+                        low_power_mode_no_gps();
                     }
 
                     // if we just went into landed power down everything except GPS
@@ -175,7 +174,24 @@ void primary_task(void *pvParameters) {
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), flight_state, local_acc, local_gyr, local_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                    flash_packet fp = {
+                        .n = 0,
+                        .timestamp = esp_timer_get_time(),
+                        .pyro_arm = calc_pyro_arm(),
+                        .flight_state = flight_state,
+                        .acc = local_acc,
+                        .gyr = local_gyr,
+                        .mag = local_mag,
+                        .high_g_acc = high_g_acc,
+                        .baro = baro,
+                        .barometric_agl = barometric_agl,
+                        .barometric_velocity = barometric_velocity,
+                        .average_barometric_velocity = average_barometric_velocity,
+                        .latitude = lat,
+                        .longitude = lon,
+                        .gps_altitude = gps_altitude,
+                        .bat_voltage = psu_read_battery_voltage(),
+                    };
                     flash_queue_packet(&fp);
                 }
             }
@@ -434,14 +450,6 @@ void low_power_mode_no_gps(void) {
 
     h3lis331dl_set_power_mode(H3LIS331DL_LOW_POWER_0_5HZ);
     vTaskDelay(pdMS_TO_TICKS(1));
-}
-
-void low_power_mode(void) {
-    printf("Entering low power mode.\n");
-    
-    GPS_low_power_mode();
-
-    low_power_mode_no_gps();
 }
 
 void high_power_mode(void) {
