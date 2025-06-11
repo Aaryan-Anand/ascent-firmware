@@ -138,8 +138,8 @@ void primary_task(void *pvParameters) {
                 //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
                 //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
                 //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
-                printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
+                //get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
+                //printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
                 printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
 
                 float barometric_agl;
