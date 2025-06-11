@@ -27,8 +27,7 @@ void dcs_to_degrees(const dcs_3d_t* dcs, orientation_t* orientation, dcs_type_t 
     orientation->roll = (dcs_type == DCS_TYPE_ACC) ? 0.0f : atan2f(dcs->y, dcs->z) * 180.0f / M_PI;
     
     // Pitch is rotation around Y axis (lateral)
-    orientation->pitch = atan2f(-dcs->x, 
-                               sqrtf(dcs->y * dcs->y + dcs->z * dcs->z)) * 180.0f / M_PI;
+    orientation->pitch = atan2f(-dcs->x, dcs->z) * 180.0f / M_PI;
     
     // Yaw is rotation around Z axis (vertical at launch)
     orientation->yaw = atan2f(dcs->y, dcs->x) * 180.0f / M_PI;
@@ -40,6 +39,9 @@ void dcs_to_degrees(const dcs_3d_t* dcs, orientation_t* orientation, dcs_type_t 
             orientation->pitch += 90.0f;
             if (orientation->yaw > 180.0f) {
                 orientation->yaw -= 360.0f;
+            }
+            if (orientation->pitch > 180.0f) {
+                orientation->pitch -= 360.0f;
             }
             break;
             
