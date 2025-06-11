@@ -258,7 +258,11 @@ void app_main(void) {
 
     // validate_esp32();
     // vTaskDelay(100 / portTICK_PERIOD_MS);        THIS IS NOT REQUIRED ANYMORE
+    
+    buzzer_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    ascent_beep();
     init_boot_sequence();
 
     // Set origin vectors during boot sequence
@@ -267,7 +271,9 @@ void app_main(void) {
 
     fail_if_barometer_bad();
 
-    ascent_beep();
+    break_beep();
+    battery_beep();
+    break_beep();
 
     serial_util_init();
 
@@ -368,8 +374,6 @@ void init_boot_sequence(void) {
     GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    buzzer_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
