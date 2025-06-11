@@ -127,13 +127,13 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t local_acc, local_gyr, local_mag;
                 imu_float_3d_t high_g_acc;
                 dcs_3d_t body_relative_dcs;
+                orientation_t orient;
+                baro_double_t baro;
+
                 bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
                 h3lis331dl_get_local(&high_g_acc, false);
-                
-                orientation_t orient;
-                get_acc_orientation(&local_acc, &orient);
-                baro_double_t baro;
                 bmp390_get_local(&baro);
+                get_acc_orientation(&local_acc, &orient);
 
                 //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
                 //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
