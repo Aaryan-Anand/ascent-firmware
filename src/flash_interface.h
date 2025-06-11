@@ -23,6 +23,8 @@ typedef struct {
     float latitude;
     float longitude;
     uint32_t gps_altitude;
+
+    float bat_voltage;
 } flash_packet;
 
 uint32_t flash_get_addr();

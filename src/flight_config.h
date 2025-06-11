@@ -10,10 +10,8 @@
 #define ENGINE_GS (9.81*3)
 #define APPO_GS (9.81/2)
 
-#define APOGEE_MIN 500
+#define MAINS_ALT (1000/3.28)
 
-#define MAINS_ALT 1000
-
-#define PANIC_VEL (-180.0f/3.28)
+#define PANIC_VEL (-240.0f/3.28)
 
 #endif
