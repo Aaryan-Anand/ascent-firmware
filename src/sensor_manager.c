@@ -48,7 +48,7 @@ float high_g_correction_matrix[3][3] = {
 };
 
 float acc_bias_vector[3] = {0.119969f, 0.363178f, -0.241031f};
-float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float gyr_bias_vector[3] = {0.071024621f, 0.023225296f, 0.081309365f};
 float mag_bias_vector[3] = {979.674588, 499.134952, -895.484539};
 float high_g_bias_vector[3] = {-0.219985f, 0.266331f, 0.154979f};
 
