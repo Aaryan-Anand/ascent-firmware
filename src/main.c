@@ -243,7 +243,7 @@ void secondary_task(void *pvParameters) {
 
 void app_main(void) {
     esp_err_t err;
-    //TaskHandle_t megolavania_task_handle;
+    TaskHandle_t megolavania_task_handle;
 
 #ifdef GENERAL_DEBUG
     validate_esp32();
@@ -278,6 +278,8 @@ void app_main(void) {
 
     serial_util_init();
 
+    flash_prepare_for_flight();
+
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
@@ -289,7 +291,7 @@ void app_main(void) {
 
     beep_pyro_cont();
 
-    // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+    xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
     high_power_mode();
     vTaskDelay(100 / portTICK_PERIOD_MS);
