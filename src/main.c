@@ -62,7 +62,6 @@ void fail_if_barometer_bad(void);
 
 void update_loop_rate(void);
 void low_power_mode_no_gps(void);
-void low_power_mode(void);
 void high_power_mode(void);
 
 // from lora_interface.c
@@ -128,21 +127,23 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t local_acc, local_gyr, local_mag;
                 imu_float_3d_t high_g_acc;
                 dcs_3d_t body_relative_dcs;
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
-                h3lis331dl_get_local(&high_g_acc, false);
-                
                 orientation_t orient;
-                get_acc_orientation(&local_acc, &orient);
                 baro_double_t baro;
+
+                bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+                h3lis331dl_get_local(&high_g_acc, true);
                 bmp390_get_local(&baro);
-
-                //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
-                //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
-                printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
-                printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
-
+                
+                if((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
+                    get_acc_orientation(&local_acc, &orient);
+                }
+                else {
+                    update_orientation_from_gyro(&local_gyr);
+                    get_orientation_euler(&orient);
+                }
+                
+                //printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
+                
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
@@ -151,14 +152,13 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
 
-
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
 
                     if (get_flight_state() == FS_PREFLIGHT) {
-                        low_power_mode();
+                        low_power_mode_no_gps();
                     }
 
                     // if we just went into landed power down everything except GPS
@@ -175,7 +175,24 @@ void primary_task(void *pvParameters) {
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {0, esp_timer_get_time(), calc_pyro_arm(), flight_state, local_acc, local_gyr, local_mag, high_g_acc, baro, barometric_agl, barometric_velocity, average_barometric_velocity, lat, lon, gps_altitude};
+                    flash_packet fp = {
+                        .n = 0,
+                        .timestamp = esp_timer_get_time(),
+                        .pyro_arm = calc_pyro_arm(),
+                        .flight_state = flight_state,
+                        .acc = local_acc,
+                        .gyr = local_gyr,
+                        .mag = local_mag,
+                        .high_g_acc = high_g_acc,
+                        .baro = baro,
+                        .barometric_agl = barometric_agl,
+                        .barometric_velocity = barometric_velocity,
+                        .average_barometric_velocity = average_barometric_velocity,
+                        .latitude = lat,
+                        .longitude = lon,
+                        .gps_altitude = gps_altitude,
+                        .bat_voltage = psu_read_battery_voltage(),
+                    };
                     flash_queue_packet(&fp);
                 }
             }
@@ -242,7 +259,11 @@ void app_main(void) {
 
     // validate_esp32();
     // vTaskDelay(100 / portTICK_PERIOD_MS);        THIS IS NOT REQUIRED ANYMORE
+    
+    buzzer_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    ascent_beep();
     init_boot_sequence();
 
     // Set origin vectors during boot sequence
@@ -251,14 +272,16 @@ void app_main(void) {
 
     fail_if_barometer_bad();
 
-    ascent_beep();
+    break_beep();
+    battery_beep();
+    break_beep();
 
     serial_util_init();
 
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
-    try_to_dump_data();
+    //try_to_dump_data();
     
     // w25qxx_chip_erase();
 
@@ -352,8 +375,6 @@ void init_boot_sequence(void) {
     GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    buzzer_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -434,14 +455,6 @@ void low_power_mode_no_gps(void) {
 
     h3lis331dl_set_power_mode(H3LIS331DL_LOW_POWER_0_5HZ);
     vTaskDelay(pdMS_TO_TICKS(1));
-}
-
-void low_power_mode(void) {
-    printf("Entering low power mode.\n");
-    
-    GPS_low_power_mode();
-
-    low_power_mode_no_gps();
 }
 
 void high_power_mode(void) {

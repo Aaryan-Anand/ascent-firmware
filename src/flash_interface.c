@@ -145,6 +145,8 @@ void flash_dump_to_serial(void) {
         printf("%f,", fp.longitude);
         printf("%lu,", fp.gps_altitude);
 
+        printf("%f,", fp.bat_voltage);
+
         printf("\n");
     }
 
