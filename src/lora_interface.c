@@ -165,6 +165,10 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 	if (CAMERA_ACTIVE) {
 		pyro_arm |= (1 << 4);
 	}
+
+	bool sleep_mode = atomic_load(&thread_safe_should_wakeup);
+	
+	pyro_arm |= (sleep_mode << 5);
 	
     payload.telemetry.pyro_state = pyro_arm;
 	payload.telemetry.sats = sats;
@@ -334,12 +338,12 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 			break;
 		}
 		case MSG_TYPE_REQ_WAKEUP: {
-			#ifdef LORA_DEBUG
 			printf("Received REQ_WAKEUP\n");
-			#endif
 			resp_msg_cls = MSG_TYPE_POST_PINGPONG;
 			resp_msg_payload.single_byte.single_byte_payload = 0x12;
 			resp_msg_payload_len = 1;
+
+			vTaskDelay(5000 / portTICK_PERIOD_MS); // forgive me for i have sinned.
 
 			//WAKEUP LOGIC GOES HERE @worldwalker2000
 			bool value = atomic_load(&thread_safe_should_wakeup);
