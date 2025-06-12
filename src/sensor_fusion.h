@@ -3,7 +3,7 @@
 
 #include "interface_bno055.h"
 
-#define SCALE_MAG_VECTORS
+//#define SCALE_MAG_VECTORS
 
 // Scale magnetometer vectors to normalized range
 #ifdef SCALE_MAG_VECTORS
