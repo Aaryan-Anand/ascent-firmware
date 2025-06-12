@@ -80,10 +80,10 @@ void euler_rates_to_quaternion_derivative(const quat_t* current_quat,
 void quaternion_to_euler(const quat_t* quat, orientation_t* euler);
 
 // Get current orientation in Euler angles (degrees)
-void get_gyr_orientation_euler(orientation_t* euler);
+void get_orientation_euler(orientation_t* euler);
 
 // Set orientation from Euler angles (degrees)
-void set_gyr_orientation_euler(const orientation_t* euler);
+void set_orientation_euler(const orientation_t* euler);
 
 // Update orientation using gyroscope data
 void update_orientation_from_gyro(const imu_local_3d_t* gyr);
