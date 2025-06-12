@@ -138,14 +138,13 @@ void primary_task(void *pvParameters) {
                 dcs_3d_t body_relative_dcs = {0};
 #ifdef IS_SITL
                 local_acc.x = get_current_vertical_accl();
-                printf("Serial: %d\n", local_acc.x);
+                printf("Serial: %f\n", local_acc.x);
 #else
                 bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
 #endif
                 h3lis331dl_get_local(&high_g_acc, false);
                 
                 orientation_t orient;
-                get_acc_orientation(&local_acc, &orient);
                 baro_double_t baro;
 #ifdef IS_SITL
                 baro.alt = get_current_baro_alt();
@@ -160,6 +159,17 @@ void primary_task(void *pvParameters) {
                 printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
                 printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
 
+
+                if ((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
+                    get_acc_orientation(&local_acc, &orient);
+                }
+                else {
+                    update_orientation_from_gyro(&local_gyr);
+                    get_orientation_euler(&orient);
+                }
+                
+                //printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
+                
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
@@ -167,7 +177,6 @@ void primary_task(void *pvParameters) {
 
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
-
 
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
@@ -276,8 +285,15 @@ void app_main(void) {
 
     // validate_esp32();
     // vTaskDelay(100 / portTICK_PERIOD_MS);        THIS IS NOT REQUIRED ANYMORE
+    
+    buzzer_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    ascent_beep();
     init_boot_sequence();
+
+    flash_dump_to_serial();
+    return;
 
     // Set origin vectors during boot sequence
     printf("Setting attitude vectors...\n");
@@ -285,7 +301,9 @@ void app_main(void) {
 
     fail_if_barometer_bad();
 
-    ascent_beep();
+    break_beep();
+    battery_beep();
+    break_beep();
 
     serial_util_init();
 
@@ -390,8 +408,6 @@ void init_boot_sequence(void) {
     GPS_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    buzzer_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     lora_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);

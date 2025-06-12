@@ -13,7 +13,7 @@ A = 1
 
 rows = []
 
-with open("data.csv", "r") as f:
+with open("fast.csv", "r") as f:
     reader = csv.reader(f)
 
     for row in reader:
@@ -27,7 +27,7 @@ with open("data.csv", "r") as f:
         rows.append(data)
 
 st = time()
-def now(): return time()-st
+def now(): return (time()-st)*2
 
 i = 0
 
@@ -45,7 +45,7 @@ while i < len(rows)-1:
 
     alt = a[B] + (b[B] - a[B])/(b[T] - a[T]) * (now()-a[T])
     # accl = (a[A] + (b[A] - a[A])/(b[T] - a[T]) * (now()-a[T]))*1000
-    accl = a[A]*1000
+    accl = a[A]*9.81
     print(accl)
 
     while ser.in_waiting > 0:
