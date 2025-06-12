@@ -390,7 +390,7 @@ void init_boot_sequence(void) {
     flash_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  255) } }, 1);
+    // neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  255) } }, 1);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
