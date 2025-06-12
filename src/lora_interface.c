@@ -74,7 +74,7 @@ void turn_on_fan(void) {
 }
 
 void turn_off_fan(void) {
-    pyro_activate(PYRO_CHANNEL_4,0,1); 
+    pyro_activate(PYRO_CHANNEL_4,1,1); 
 }
 
 void lora_flight_init()
