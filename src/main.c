@@ -134,7 +134,7 @@ void primary_task(void *pvParameters) {
                 h3lis331dl_get_local(&high_g_acc, true);
                 bmp390_get_local(&baro);
                 
-                if(flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) {
+                if((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
                     get_acc_orientation(&local_acc, &orient);
                 }
                 else {
