@@ -5,6 +5,9 @@
 #include "stdio.h"
 #include "esp_timer.h"
 
+// ==== Static Orientation State ====
+static quat_t orientation_quat = {1.0f, 0.0f, 0.0f, 0.0f};
+
 void vector_to_dcs(const imu_local_3d_t* vector, dcs_3d_t* dcs) {
     // Calculate vector magnitude
     float norm = sqrtf(vector->x * vector->x + vector->y * vector->y + vector->z * vector->z);
@@ -147,52 +150,62 @@ void get_acc_orientation(const imu_local_3d_t* acc, orientation_t* orientation) 
     dcs_to_degrees(&acc_dcs, orientation, DCS_TYPE_ACC);
 }
 
-void get_gyr_orientation(imu_local_3d_t* gyr, orientation_t* orientation) {
+// ==== Main Integration Function ====
+void update_orientation_from_gyro(const imu_local_3d_t* gyr) {
     static int64_t last_gyr_timestamp = 0;
     static bool first_call = true;
-    
-    if (first_call) {
-        last_gyr_timestamp = esp_timer_get_time();
-        first_call = false;
-        return;  // Skip first call as we need a valid dt
-    }
-    
-    // Calculate time step in seconds
+
+    // Get current time in microseconds
     int64_t current_time = esp_timer_get_time();
-    float dt = (current_time - last_gyr_timestamp) / 1000000.0f;  // Convert to seconds
+
+    if (first_call) {
+        last_gyr_timestamp = current_time;
+        first_call = false;
+        return;
+    }
+
+    float dt = (current_time - last_gyr_timestamp) / 1000000.0f; // seconds
     last_gyr_timestamp = current_time;
 
-    // Convert current orientation to quaternion
-    quat_t current_quat;
-    euler_to_quaternion(orientation, &current_quat);
+    // Convert rates to rad/s
+    float wx = gyr->x * M_PI / 180.0f;
+    float wy = gyr->y * M_PI / 180.0f;
+    float wz = gyr->z * M_PI / 180.0f;
 
-    // Convert gyro rates to quaternion derivative
-    quat_t quat_derivative;
-    euler_rates_to_quaternion_derivative(&current_quat, gyr, &quat_derivative);
+    // Calculate quaternion derivative
+    quat_t q = orientation_quat;
+    quat_t q_dot;
+    q_dot.w = -0.5f * (q.x * wx + q.y * wy + q.z * wz);
+    q_dot.x =  0.5f * (q.w * wx + q.y * wz - q.z * wy);
+    q_dot.y =  0.5f * (q.w * wy + q.z * wx - q.x * wz);
+    q_dot.z =  0.5f * (q.w * wz + q.x * wy - q.y * wx);
 
-    // Integrate quaternion using first-order method
-    // q(t + dt) = q(t) + q̇(t) * dt
-    quat_t integrated_quat;
-    integrated_quat.w = current_quat.w + quat_derivative.w * dt;
-    integrated_quat.x = current_quat.x + quat_derivative.x * dt;
-    integrated_quat.y = current_quat.y + quat_derivative.y * dt;
-    integrated_quat.z = current_quat.z + quat_derivative.z * dt;
+    // Integrate
+    orientation_quat.w += q_dot.w * dt;
+    orientation_quat.x += q_dot.x * dt;
+    orientation_quat.y += q_dot.y * dt;
+    orientation_quat.z += q_dot.z * dt;
 
-    // Normalize the integrated quaternion
-    float norm = sqrtf(integrated_quat.w * integrated_quat.w + 
-                      integrated_quat.x * integrated_quat.x + 
-                      integrated_quat.y * integrated_quat.y + 
-                      integrated_quat.z * integrated_quat.z);
-    
+    // Normalize
+    float norm = sqrtf(orientation_quat.w * orientation_quat.w +
+                      orientation_quat.x * orientation_quat.x +
+                      orientation_quat.y * orientation_quat.y +
+                      orientation_quat.z * orientation_quat.z);
     if (norm > 0.0f) {
-        integrated_quat.w /= norm;
-        integrated_quat.x /= norm;
-        integrated_quat.y /= norm;
-        integrated_quat.z /= norm;
+        orientation_quat.w /= norm;
+        orientation_quat.x /= norm;
+        orientation_quat.y /= norm;
+        orientation_quat.z /= norm;
     }
+}
 
-    // Convert back to Euler angles
-    quaternion_to_euler(&integrated_quat, orientation);
+// ==== Output/Reset Functions ====
+void get_gyr_orientation_euler(orientation_t* euler) {
+    quaternion_to_euler(&orientation_quat, euler);
+}
+
+void set_gyr_orientation_euler(const orientation_t* euler) {
+    euler_to_quaternion(euler, &orientation_quat);
 }
 
 void euler_to_quaternion(const orientation_t* euler, quat_t* quat) {
@@ -243,10 +256,16 @@ void euler_rates_to_quaternion_derivative(const quat_t* current_quat,
 
     // Calculate quaternion derivative using the quaternion kinematic equation:
     // q̇ = 0.5 * q ⊗ [0, ωx, ωy, ωz]
-    quat_derivative->w = 0.5f * (-current_quat->x * wx - current_quat->y * wy - current_quat->z * wz);
-    quat_derivative->x = 0.5f * (current_quat->w * wx - current_quat->z * wy + current_quat->y * wz);
-    quat_derivative->y = 0.5f * (current_quat->z * wx + current_quat->w * wy - current_quat->x * wz);
-    quat_derivative->z = 0.5f * (-current_quat->y * wx + current_quat->x * wy + current_quat->w * wz);
+    quat_derivative->w = -current_quat->x * wx - current_quat->y * wy - current_quat->z * wz;
+    quat_derivative->x =  current_quat->w * wx + current_quat->y * wz - current_quat->z * wy;
+    quat_derivative->y =  current_quat->w * wy + current_quat->z * wx - current_quat->x * wz;
+    quat_derivative->z =  current_quat->w * wz + current_quat->x * wy - current_quat->y * wx;
+
+    // Then scale by 0.5
+    quat_derivative->w *= 0.5f;
+    quat_derivative->x *= 0.5f;
+    quat_derivative->y *= 0.5f;
+    quat_derivative->z *= 0.5f;
 }
 
 void quaternion_to_euler(const quat_t* quat, orientation_t* euler) {

@@ -135,7 +135,8 @@ void primary_task(void *pvParameters) {
                 bmp390_get_local(&baro);
                 //get_acc_orientation(&local_acc, &orient);
                 //get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
-                get_gyr_orientation(&local_gyr, &orient);
+                update_orientation_from_gyro(&local_gyr);
+                get_gyr_orientation_euler(&orient);
                 //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
                 //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
                 //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
