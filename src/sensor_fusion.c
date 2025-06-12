@@ -150,13 +150,77 @@ void get_acc_orientation(const imu_local_3d_t* acc, orientation_t* orientation) 
     dcs_to_degrees(&acc_dcs, orientation, DCS_TYPE_ACC);
 }
 
+// ==== Helper Functions ====
+
+// Converts Euler angles (deg) to quaternion
+void euler_to_quaternion(const orientation_t* euler, quat_t* quat) {
+    float roll_rad  = euler->roll  * M_PI / 180.0f;
+    float pitch_rad = euler->pitch * M_PI / 180.0f;
+    float yaw_rad   = euler->yaw   * M_PI / 180.0f;
+
+    float cr = cosf(roll_rad * 0.5f);
+    float sr = sinf(roll_rad * 0.5f);
+    float cp = cosf(pitch_rad * 0.5f);
+    float sp = sinf(pitch_rad * 0.5f);
+    float cy = cosf(yaw_rad * 0.5f);
+    float sy = sinf(yaw_rad * 0.5f);
+
+    quat->w = cr * cp * cy + sr * sp * sy;
+    quat->x = sr * cp * cy - cr * sp * sy;
+    quat->y = cr * sp * cy + sr * cp * sy;
+    quat->z = cr * cp * sy - sr * sp * cy;
+
+    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + quat->y * quat->y + quat->z * quat->z);
+    if (norm > 0.0f) {
+        quat->w /= norm;
+        quat->x /= norm;
+        quat->y /= norm;
+        quat->z /= norm;
+    }
+}
+
+// Converts quaternion to Euler angles (deg), aerospace ZYX (yaw-pitch-roll)
+void quaternion_to_euler(const quat_t* quat, orientation_t* euler) {
+    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + quat->y * quat->y + quat->z * quat->z);
+    float qw = quat->w / norm;
+    float qx = quat->x / norm;
+    float qy = quat->y / norm;
+    float qz = quat->z / norm;
+
+    // Roll (x-axis rotation)
+    float sinr_cosp = 2.0f * (qw * qx + qy * qz);
+    float cosr_cosp = 1.0f - 2.0f * (qx * qx + qy * qy);
+    euler->roll = atan2f(sinr_cosp, cosr_cosp) * 180.0f / M_PI;
+
+    // Pitch (y-axis rotation)
+    float sinp = 2.0f * (qw * qy - qz * qx);
+    if (fabsf(sinp) >= 1.0f) {
+        euler->pitch = copysignf(90.0f, sinp);
+    } else {
+        euler->pitch = asinf(sinp) * 180.0f / M_PI;
+    }
+
+    // Yaw (z-axis rotation)
+    float siny_cosp = 2.0f * (qw * qz + qx * qy);
+    float cosy_cosp = 1.0f - 2.0f * (qy * qy + qz * qz);
+    euler->yaw = atan2f(siny_cosp, cosy_cosp) * 180.0f / M_PI;
+
+    // Normalize ranges
+    if (euler->roll > 180.0f) euler->roll -= 360.0f;
+    if (euler->roll < -180.0f) euler->roll += 360.0f;
+    if (euler->yaw < 0.0f)    euler->yaw += 360.0f;
+}
+
 // ==== Main Integration Function ====
+
+// Call this at fixed intervals or in your sensor update callback
+// Pass in latest gyro values in deg/s
 void update_orientation_from_gyro(const imu_local_3d_t* gyr) {
     static int64_t last_gyr_timestamp = 0;
     static bool first_call = true;
 
-    // Get current time in microseconds
-    int64_t current_time = esp_timer_get_time();
+    // Platform-specific: replace with your timer function as needed
+    int64_t current_time = esp_timer_get_time(); // microseconds
 
     if (first_call) {
         last_gyr_timestamp = current_time;
@@ -172,7 +236,7 @@ void update_orientation_from_gyro(const imu_local_3d_t* gyr) {
     float wy = gyr->y * M_PI / 180.0f;
     float wz = gyr->z * M_PI / 180.0f;
 
-    // Calculate quaternion derivative
+    // Omega quaternion [0, wx, wy, wz]
     quat_t q = orientation_quat;
     quat_t q_dot;
     q_dot.w = -0.5f * (q.x * wx + q.y * wy + q.z * wz);
@@ -188,9 +252,9 @@ void update_orientation_from_gyro(const imu_local_3d_t* gyr) {
 
     // Normalize
     float norm = sqrtf(orientation_quat.w * orientation_quat.w +
-                      orientation_quat.x * orientation_quat.x +
-                      orientation_quat.y * orientation_quat.y +
-                      orientation_quat.z * orientation_quat.z);
+                       orientation_quat.x * orientation_quat.x +
+                       orientation_quat.y * orientation_quat.y +
+                       orientation_quat.z * orientation_quat.z);
     if (norm > 0.0f) {
         orientation_quat.w /= norm;
         orientation_quat.x /= norm;
@@ -200,50 +264,16 @@ void update_orientation_from_gyro(const imu_local_3d_t* gyr) {
 }
 
 // ==== Output/Reset Functions ====
-void get_gyr_orientation_euler(orientation_t* euler) {
+
+// Use this to read current orientation in Euler angles (deg)
+void get_orientation_euler(orientation_t* euler) {
     quaternion_to_euler(&orientation_quat, euler);
+    euler->yaw = euler->yaw-180;
 }
 
-void set_gyr_orientation_euler(const orientation_t* euler) {
+// Use this to manually set orientation from Euler (deg), e.g., at startup or after a reset
+void set_orientation_euler(const orientation_t* euler) {
     euler_to_quaternion(euler, &orientation_quat);
-}
-
-void euler_to_quaternion(const orientation_t* euler, quat_t* quat) {
-    // Convert angles from degrees to radians
-    float roll_rad = euler->roll * M_PI / 180.0f;
-    float pitch_rad = euler->pitch * M_PI / 180.0f;
-    float yaw_rad = euler->yaw * M_PI / 180.0f;
-
-    // Calculate half angles
-    float roll_2 = roll_rad * 0.5f;
-    float pitch_2 = pitch_rad * 0.5f;
-    float yaw_2 = yaw_rad * 0.5f;
-
-    // Calculate trigonometric values
-    float cr = cosf(roll_2);
-    float sr = sinf(roll_2);
-    float cp = cosf(pitch_2);
-    float sp = sinf(pitch_2);
-    float cy = cosf(yaw_2);
-    float sy = sinf(yaw_2);
-
-    // Calculate quaternion components
-    // Using the aerospace sequence (ZYX): yaw (Z) -> pitch (Y) -> roll (X)
-    quat->w = cr * cp * cy + sr * sp * sy;
-    quat->x = sr * cp * cy - cr * sp * sy;
-    quat->y = cr * sp * cy + sr * cp * sy;
-    quat->z = cr * cp * sy - sr * sp * cy;
-
-    // Normalize quaternion
-    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + 
-                      quat->y * quat->y + quat->z * quat->z);
-    
-    if (norm > 0.0f) {
-        quat->w /= norm;
-        quat->x /= norm;
-        quat->y /= norm;
-        quat->z /= norm;
-    }
 }
 
 void euler_rates_to_quaternion_derivative(const quat_t* current_quat, 
@@ -266,48 +296,4 @@ void euler_rates_to_quaternion_derivative(const quat_t* current_quat,
     quat_derivative->x *= 0.5f;
     quat_derivative->y *= 0.5f;
     quat_derivative->z *= 0.5f;
-}
-
-void quaternion_to_euler(const quat_t* quat, orientation_t* euler) {
-    // Normalize quaternion to ensure it's a unit quaternion
-    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + 
-                      quat->y * quat->y + quat->z * quat->z);
-    
-    float qw = quat->w / norm;
-    float qx = quat->x / norm;
-    float qy = quat->y / norm;
-    float qz = quat->z / norm;
-
-    // Calculate roll (x-axis rotation)
-    float sinr_cosp = 2.0f * (qw * qx + qy * qz);
-    float cosr_cosp = 1.0f - 2.0f * (qx * qx + qy * qy);
-    euler->roll = atan2f(sinr_cosp, cosr_cosp) * 180.0f / M_PI;
-
-    // Calculate pitch (y-axis rotation)
-    float sinp = 2.0f * (qw * qy - qz * qx);
-    if (fabsf(sinp) >= 1.0f) {
-        euler->pitch = copysignf(90.0f, sinp);
-    } else {
-        euler->pitch = asinf(sinp) * 180.0f / M_PI;
-    }
-
-    // Calculate yaw (z-axis rotation)
-    float siny_cosp = 2.0f * (qw * qz + qx * qy);
-    float cosy_cosp = 1.0f - 2.0f * (qy * qy + qz * qz);
-    euler->yaw = atan2f(siny_cosp, cosy_cosp) * 180.0f / M_PI;
-
-    // Normalize angles to appropriate ranges
-    // Roll: -180 to +180
-    if (euler->roll > 180.0f) {
-        euler->roll -= 360.0f;
-    } else if (euler->roll < -180.0f) {
-        euler->roll += 360.0f;
-    }
-
-    // Pitch: -90 to +90 (already handled by asinf)
-    
-    // Yaw: 0 to 360
-    if (euler->yaw < 0.0f) {
-        euler->yaw += 360.0f;
-    }
 }
