@@ -174,7 +174,7 @@ void primary_task(void *pvParameters) {
                 lora_queue_packet(&telemetry);
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
-                if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
+                if (flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
                     flash_packet fp = {
                         .n = 0,
                         .timestamp = esp_timer_get_time(),
@@ -229,7 +229,7 @@ void secondary_task(void *pvParameters) {
         if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
             goober_payload_t telemetry;
             lora_read_latest_queue_packet(&telemetry);
-            slave_lora_task(&telemetry);
+            // slave_lora_task(&telemetry);
         }
 
         if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
@@ -353,7 +353,7 @@ void init_boot_sequence(void) {
     // NeoPixel
     neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 0,  0) } }, 1);
-    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 0,  0) } }, 1);
+    neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(255, 255,  0) } }, 1);
 
     fflush(stdout);
 
