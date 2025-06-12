@@ -130,19 +130,20 @@ void primary_task(void *pvParameters) {
                 orientation_t orient;
                 baro_double_t baro;
 
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
-                h3lis331dl_get_local(&high_g_acc, false);
+                bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+                h3lis331dl_get_local(&high_g_acc, true);
                 bmp390_get_local(&baro);
-                //get_acc_orientation(&local_acc, &orient);
-                //get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
-                update_orientation_from_gyro(&local_gyr);
-                get_orientation_euler(&orient);
-                //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
-                //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                //printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
-                printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
-
+                
+                if(flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) {
+                    get_acc_orientation(&local_acc, &orient);
+                }
+                else {
+                    update_orientation_from_gyro(&local_gyr);
+                    get_orientation_euler(&orient);
+                }
+                
+                //printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
+                
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
@@ -150,7 +151,6 @@ void primary_task(void *pvParameters) {
 
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
-
 
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
