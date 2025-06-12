@@ -85,6 +85,9 @@ bool flash_prepare_for_flight(void) {
         if (res) return false;
     }
 
+    addr = 100*SECTOR_SIZE;
+    save_addr();
+
     return true;
 }
 
