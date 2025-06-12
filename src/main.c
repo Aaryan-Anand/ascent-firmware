@@ -133,12 +133,12 @@ void primary_task(void *pvParameters) {
                 bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
                 h3lis331dl_get_local(&high_g_acc, false);
                 bmp390_get_local(&baro);
-                get_acc_orientation(&local_acc, &orient);
-
+                //get_acc_orientation(&local_acc, &orient);
+                //get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
+                get_gyr_orientation(&local_gyr, &orient);
                 //printf("acc: %f \t %f \t %f \t gyr: %f \t %f \t %f \t mag: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_gyr.x, local_gyr.y, local_gyr.z, local_mag.x, local_mag.y, local_mag.z);
                 //printf("mag: %f \t %f \t %f \t %f\t", local_mag.x, local_mag.y, local_mag.z, sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
                 //printf("mag: %f \t %f \t %f \t %f\t", mapf(local_mag.x, -59, -130, -10, 10), mapf(local_mag.y, -80, 10, -10, 10), mapf(local_mag.z, 35, 117, -10, 10), sqrt(local_mag.x*local_mag.x + local_mag.y*local_mag.y + local_mag.z*local_mag.z));
-                //get_mag_orientation(&local_mag, &body_relative_dcs, &orient);
                 //printf("body_relative_dcs: %f \t %f \t %f\t", body_relative_dcs.x, body_relative_dcs.y, body_relative_dcs.z);
                 printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
 
@@ -280,7 +280,7 @@ void app_main(void) {
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
-    try_to_dump_data();
+    //try_to_dump_data();
     
     // w25qxx_chip_erase();
 

@@ -3,6 +3,7 @@
 #include "math.h"
 #include "beep.h"
 #include "stdio.h"
+#include "esp_timer.h"
 
 void vector_to_dcs(const imu_local_3d_t* vector, dcs_3d_t* dcs) {
     // Calculate vector magnitude
@@ -144,4 +145,150 @@ void get_acc_orientation(const imu_local_3d_t* acc, orientation_t* orientation) 
     
     // Convert direction cosines to orientation angles (using accelerometer mode)
     dcs_to_degrees(&acc_dcs, orientation, DCS_TYPE_ACC);
+}
+
+void get_gyr_orientation(imu_local_3d_t* gyr, orientation_t* orientation) {
+    static int64_t last_gyr_timestamp = 0;
+    static bool first_call = true;
+    
+    if (first_call) {
+        last_gyr_timestamp = esp_timer_get_time();
+        first_call = false;
+        return;  // Skip first call as we need a valid dt
+    }
+    
+    // Calculate time step in seconds
+    int64_t current_time = esp_timer_get_time();
+    float dt = (current_time - last_gyr_timestamp) / 1000000.0f;  // Convert to seconds
+    last_gyr_timestamp = current_time;
+
+    // Convert current orientation to quaternion
+    quat_t current_quat;
+    euler_to_quaternion(orientation, &current_quat);
+
+    // Convert gyro rates to quaternion derivative
+    quat_t quat_derivative;
+    euler_rates_to_quaternion_derivative(&current_quat, gyr, &quat_derivative);
+
+    // Integrate quaternion using first-order method
+    // q(t + dt) = q(t) + q̇(t) * dt
+    quat_t integrated_quat;
+    integrated_quat.w = current_quat.w + quat_derivative.w * dt;
+    integrated_quat.x = current_quat.x + quat_derivative.x * dt;
+    integrated_quat.y = current_quat.y + quat_derivative.y * dt;
+    integrated_quat.z = current_quat.z + quat_derivative.z * dt;
+
+    // Normalize the integrated quaternion
+    float norm = sqrtf(integrated_quat.w * integrated_quat.w + 
+                      integrated_quat.x * integrated_quat.x + 
+                      integrated_quat.y * integrated_quat.y + 
+                      integrated_quat.z * integrated_quat.z);
+    
+    if (norm > 0.0f) {
+        integrated_quat.w /= norm;
+        integrated_quat.x /= norm;
+        integrated_quat.y /= norm;
+        integrated_quat.z /= norm;
+    }
+
+    // Convert back to Euler angles
+    quaternion_to_euler(&integrated_quat, orientation);
+}
+
+void euler_to_quaternion(const orientation_t* euler, quat_t* quat) {
+    // Convert angles from degrees to radians
+    float roll_rad = euler->roll * M_PI / 180.0f;
+    float pitch_rad = euler->pitch * M_PI / 180.0f;
+    float yaw_rad = euler->yaw * M_PI / 180.0f;
+
+    // Calculate half angles
+    float roll_2 = roll_rad * 0.5f;
+    float pitch_2 = pitch_rad * 0.5f;
+    float yaw_2 = yaw_rad * 0.5f;
+
+    // Calculate trigonometric values
+    float cr = cosf(roll_2);
+    float sr = sinf(roll_2);
+    float cp = cosf(pitch_2);
+    float sp = sinf(pitch_2);
+    float cy = cosf(yaw_2);
+    float sy = sinf(yaw_2);
+
+    // Calculate quaternion components
+    // Using the aerospace sequence (ZYX): yaw (Z) -> pitch (Y) -> roll (X)
+    quat->w = cr * cp * cy + sr * sp * sy;
+    quat->x = sr * cp * cy - cr * sp * sy;
+    quat->y = cr * sp * cy + sr * cp * sy;
+    quat->z = cr * cp * sy - sr * sp * cy;
+
+    // Normalize quaternion
+    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + 
+                      quat->y * quat->y + quat->z * quat->z);
+    
+    if (norm > 0.0f) {
+        quat->w /= norm;
+        quat->x /= norm;
+        quat->y /= norm;
+        quat->z /= norm;
+    }
+}
+
+void euler_rates_to_quaternion_derivative(const quat_t* current_quat, 
+                                        const imu_local_3d_t* rates, 
+                                        quat_t* quat_derivative) {
+    // Convert angular rates from degrees/s to radians/s
+    float wx = rates->x * M_PI / 180.0f;
+    float wy = rates->y * M_PI / 180.0f;
+    float wz = rates->z * M_PI / 180.0f;
+
+    // Calculate quaternion derivative using the quaternion kinematic equation:
+    // q̇ = 0.5 * q ⊗ [0, ωx, ωy, ωz]
+    quat_derivative->w = 0.5f * (-current_quat->x * wx - current_quat->y * wy - current_quat->z * wz);
+    quat_derivative->x = 0.5f * (current_quat->w * wx - current_quat->z * wy + current_quat->y * wz);
+    quat_derivative->y = 0.5f * (current_quat->z * wx + current_quat->w * wy - current_quat->x * wz);
+    quat_derivative->z = 0.5f * (-current_quat->y * wx + current_quat->x * wy + current_quat->w * wz);
+}
+
+void quaternion_to_euler(const quat_t* quat, orientation_t* euler) {
+    // Normalize quaternion to ensure it's a unit quaternion
+    float norm = sqrtf(quat->w * quat->w + quat->x * quat->x + 
+                      quat->y * quat->y + quat->z * quat->z);
+    
+    float qw = quat->w / norm;
+    float qx = quat->x / norm;
+    float qy = quat->y / norm;
+    float qz = quat->z / norm;
+
+    // Calculate roll (x-axis rotation)
+    float sinr_cosp = 2.0f * (qw * qx + qy * qz);
+    float cosr_cosp = 1.0f - 2.0f * (qx * qx + qy * qy);
+    euler->roll = atan2f(sinr_cosp, cosr_cosp) * 180.0f / M_PI;
+
+    // Calculate pitch (y-axis rotation)
+    float sinp = 2.0f * (qw * qy - qz * qx);
+    if (fabsf(sinp) >= 1.0f) {
+        euler->pitch = copysignf(90.0f, sinp);
+    } else {
+        euler->pitch = asinf(sinp) * 180.0f / M_PI;
+    }
+
+    // Calculate yaw (z-axis rotation)
+    float siny_cosp = 2.0f * (qw * qz + qx * qy);
+    float cosy_cosp = 1.0f - 2.0f * (qy * qy + qz * qz);
+    euler->yaw = atan2f(siny_cosp, cosy_cosp) * 180.0f / M_PI;
+
+    // Normalize angles to appropriate ranges
+    // Roll: -180 to +180
+    if (euler->roll > 180.0f) {
+        euler->roll -= 360.0f;
+    } else if (euler->roll < -180.0f) {
+        euler->roll += 360.0f;
+    }
+
+    // Pitch: -90 to +90 (already handled by asinf)
+    
+    // Yaw: 0 to 360
+    if (euler->yaw < 0.0f) {
+        euler->yaw += 360.0f;
+    }
 }
