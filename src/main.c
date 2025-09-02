@@ -20,6 +20,8 @@
 #define NEOPIXEL_PIN GPIO_NUM_21
 static tNeopixelContext neopixel;
 
+#define FUSION_DEBUG
+
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
 #include "interface_sam_m10q.h"
@@ -246,6 +248,45 @@ void secondary_task(void *pvParameters) {
     }
 }
 
+#ifdef FUSION_DEBUG
+TaskHandle_t fusion_debug_task_handle;
+int fusion_debug_loop_fq = 100;
+TickType_t xFrequency_fusion_debug;
+void fusion_debug_task(void *pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    while (1) {
+        imu_local_3d_t local_acc, local_gyr, local_mag;
+        imu_float_3d_t high_g_acc;
+        dcs_3d_t body_relative_dcs;
+        orientation_t orient;
+        baro_double_t baro;
+
+        bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+        h3lis331dl_get_local(&high_g_acc, true);
+        bmp390_get_local(&baro);
+        
+        if(false) {
+            get_acc_orientation(&local_acc, &orient);
+        }
+        else {
+            update_orientation_from_gyro(&local_gyr);
+            get_orientation_euler(&orient);
+        }
+        
+        printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        
+        float barometric_agl;
+        float barometric_velocity;
+        float average_barometric_velocity;
+        baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
+
+        imu_local_3d_t acc;
+        accl_update(local_acc, &acc);
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_fusion_debug);
+    }
+}
+#endif
+
 void app_main(void) {
     esp_err_t err;
     //TaskHandle_t megolavania_task_handle;
@@ -272,6 +313,7 @@ void app_main(void) {
     init_boot_sequence();
 
     // Set origin vectors during boot sequence
+#ifndef FUSION_DEBUG
     printf("Setting attitude vectors...\n");
     get_initial_vectors();
 
@@ -280,7 +322,6 @@ void app_main(void) {
     break_beep();
     battery_beep();
     break_beep();
-
     serial_util_init();
 
     printf("========================\n");
@@ -301,7 +342,7 @@ void app_main(void) {
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
-
+#endif
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
     high_power_mode();
@@ -325,8 +366,13 @@ void app_main(void) {
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
     printf("Creating tasks\n");
+#ifdef FUSION_DEBUG
+    xFrequency_fusion_debug = pdMS_TO_TICKS(1000/fusion_debug_loop_fq);
+    xTaskCreatePinnedToCore(fusion_debug_task, "fusion_debug_task", 8192, NULL, 1, &fusion_debug_task_handle, 0);
+#else
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+#endif
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
