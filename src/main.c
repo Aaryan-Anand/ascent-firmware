@@ -130,7 +130,13 @@ void primary_task(void *pvParameters) {
                 orientation_t orient;
                 baro_double_t baro;
 
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+                // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+
+                // my BNO is fried, replacing its readings w/ zeros for now -abdul
+                local_acc.x = 0; local_acc.y = 0; local_acc.z = 0;
+                local_gyr.x = 0; local_gyr.y = 0; local_gyr.z = 0;
+                local_mag.x = 0; local_mag.y = 0; local_mag.z = 0;
+
                 h3lis331dl_get_local(&high_g_acc, true);
                 bmp390_get_local(&baro);
                 
