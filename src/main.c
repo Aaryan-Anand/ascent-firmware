@@ -46,20 +46,24 @@ uint8_t numSV;
 void app_main(void) {
     fflush(stdout);
     i2c_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-    GPS_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
 
-    while(1) {
-        start = 0;
-        end = 0;
-        start = esp_timer_get_time();
-        GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
-        end = esp_timer_get_time();
-        dur = end - start;
-        printf("UTCtstamp: %lu, lon: %ld, lat: %ld, height: %ld, hMSL: %ld, fixType: %u, numSV: %u\n", timestamp, lon, lat, height, hMSL, fixType, numSV);
-        printf("GPS_read duration: %lld us\n Sleeping for 5s.\n", dur);
+    GPS_ReqNavPVT(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
 
-        vTaskDelay(5000/portTICK_PERIOD_MS);
+    #ifdef MEASURE_PERFORMANCE
+    
+    const unsigned MEASUREMENTS = 5000;
+    uint64_t start = esp_timer_get_time();
+
+    for (int retries = 0; retries < MEASUREMENTS; retries++) {
+        GPS_ReqNavPVT(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
     }
+
+    uint64_t end = esp_timer_get_time();
+
+    printf("%u iterations took %llu milliseconds (%llu microseconds per invocation)\n",
+           MEASUREMENTS, (end - start)/1000, (end - start)/MEASUREMENTS);
+
+    #endif
 }
+
