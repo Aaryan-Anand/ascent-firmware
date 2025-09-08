@@ -43,11 +43,17 @@ int32_t hMSL;
 uint8_t fixType;
 uint8_t numSV;
 
+// #define MEASURE_PERFORMANCE
+
 void app_main(void) {
     fflush(stdout);
     i2c_init();
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
+    GPS_Init();
+
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    
     GPS_ReqNavPVT(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
 
     #ifdef MEASURE_PERFORMANCE
