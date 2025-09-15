@@ -286,14 +286,14 @@ void app_main(void) {
     // validate_esp32();
     // vTaskDelay(100 / portTICK_PERIOD_MS);        THIS IS NOT REQUIRED ANYMORE
     
-    buzzer_init();
+    // buzzer_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    ascent_beep();
+    // ascent_beep();
     init_boot_sequence();
 
-    flash_dump_to_serial();
-    return;
+    // flash_dump_to_serial();
+    // return;
 
     // Set origin vectors during boot sequence
     printf("Setting attitude vectors...\n");
@@ -301,9 +301,9 @@ void app_main(void) {
 
     fail_if_barometer_bad();
 
-    break_beep();
-    battery_beep();
-    break_beep();
+    // break_beep();
+    // battery_beep();
+    // break_beep();
 
     serial_util_init();
 
@@ -320,7 +320,7 @@ void app_main(void) {
 
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
-    beep_pyro_cont();
+    // beep_pyro_cont();
 
     // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
