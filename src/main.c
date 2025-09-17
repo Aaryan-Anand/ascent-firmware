@@ -226,7 +226,7 @@ void secondary_task(void *pvParameters) {
     uint32_t cycle = 0;
 
     while (1) {
-        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+        if (cycle % (uint32_t)(secondary_loop_fq) == 0) {
             goober_payload_t telemetry;
             lora_read_latest_queue_packet(&telemetry);
             slave_lora_task(&telemetry);

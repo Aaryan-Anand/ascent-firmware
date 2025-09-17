@@ -85,8 +85,8 @@ void lora_flight_init()
 	lora_enable_crc();
 
 	int cr = 1;
-	int bw = 9;
-	int sf = 7;
+	int bw = 7;
+	int sf = 11;
 
 	lora_set_coding_rate(cr);
 	//lora_set_coding_rate(CONFIG_CODING_RATE);
@@ -397,7 +397,7 @@ void slave_lora_task(goober_payload_t *telemetry)
 		lora_receive(); // put into receive mode
 
 		while(waiting) {
-			if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(6)) { // Fixed timeout
+			if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(600)) { // Fixed timeout
 				#ifdef LORA_DEBUG
 				printf("LORA: Timeout waiting for packet after %ldms\n", (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
 				#endif
