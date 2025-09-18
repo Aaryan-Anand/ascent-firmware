@@ -271,6 +271,7 @@ int fusion_debug_loop_fq = 100;
 TickType_t xFrequency_fusion_debug;
 void fusion_debug_task(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint8_t flight_state = 1;
     while (1) {
         imu_local_3d_t local_acc, local_gyr, local_mag;
         imu_float_3d_t high_g_acc;
@@ -287,12 +288,18 @@ void fusion_debug_task(void *pvParameters) {
         } else {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
         }
+
+        sensor_filter_acc(&local_acc, flight_state);   // now applies Hampel-like clamp per axis
+        sensor_filter_gyr(&local_gyr, flight_state);
+        sensor_filter_mag(&local_mag, flight_state);
+        sensor_filter_high_g_acc(&high_g_acc, flight_state);
+
         //printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
         float yaw = g_orientation.yaw;
         float pitch = g_orientation.pitch;
         float roll = g_orientation.roll;
-        printf("orient: %f \t %f \t %f\n", yaw, pitch, roll);
-        //printf("filtered acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        //printf("orient: %f \t %f \t %f\n", yaw, pitch, roll);
+        printf("x:%f \t y:%f \t z:%f\n", local_acc.x, local_acc.y, local_acc.z);
         //printf("filtered acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
         
         float barometric_agl;
