@@ -67,6 +67,7 @@ void high_power_mode(void);
 // from lora_interface.c
 void turn_off_cameras(void);
 void turn_off_fan(void);
+void fake_tx_lock(void);
 
 uint8_t calc_pyro_arm(void);
 
@@ -105,7 +106,7 @@ void primary_task(void *pvParameters) {
                 lora_queue_packet(&telemetry);
 
                 // we still need to call flight_update to get out of preflight so we just call it with all zeros
-                if (flight_update(0, 0, 0, 0)) {
+                if (flight_update(0, 0, 0, 0, 0)) {
                     if (get_flight_state() == FS_ON_PAD) {
                         update_loop_rate();
                         high_power_mode();
@@ -152,7 +153,8 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
 
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
+                float phi = 0;
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x, phi)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
@@ -225,11 +227,14 @@ void secondary_task(void *pvParameters) {
 
     uint32_t cycle = 0;
 
+    bool toggle = false;
+
     while (1) {
-        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            goober_payload_t telemetry;
-            lora_read_latest_queue_packet(&telemetry);
-            slave_lora_task(&telemetry);
+        goober_payload_t telemetry;
+        lora_read_latest_queue_packet(&telemetry);
+        if (cycle % (uint32_t)(secondary_loop_fq/1) == 0) {
+            if (toggle) slave_lora_task(&telemetry);
+            toggle = !toggle;
         }
 
         if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
@@ -278,6 +283,14 @@ void app_main(void) {
 
     serial_util_init();
 
+    printf("========================\n");
+    flash_print_stats();
+    printf("========================\n");
+    // try to go into data dumping mode
+    // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
+    // if they do this it will dump all data
+    try_to_dump_data();
+
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
@@ -295,6 +308,20 @@ void app_main(void) {
     vTaskDelay(100 / portTICK_PERIOD_MS);
 
     update_loop_rate();
+
+    printf("========================\n");
+    flash_print_stats();
+    printf("========================\n");
+
+    // used to fly ascent in one way coms only or no ground station
+    // this is changed in flight_config.h
+#ifdef ARM_REGARDLESS_OF_TXLOCK
+    fake_tx_lock();
+#endif
+
+#ifndef IS_BOOSTER
+    pyro_activate(PYRO_CHANNEL_3, 100, 1);
+#endif
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
     printf("Creating tasks\n");
@@ -497,10 +524,16 @@ void try_to_dump_data() {
     int i = 0;
     while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
         if (strcmp("DUMP", buf) == 0) {
-            flash_dump_to_serial();
-            for (int j = 0; j < 3; j++) {
-                flash_erase_jingle();
-                vTaskDelay(pdMS_TO_TICKS(500));
+            while (true) {
+                printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
+                while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                    int bank = atoi(buf);
+                    flash_dump_to_serial(bank);
+                    for (int j = 0; j < 3; j++) {
+                        flash_erase_jingle();
+                        vTaskDelay(pdMS_TO_TICKS(500));
+                    }
+                }
             }
         }
     }
