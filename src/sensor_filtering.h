@@ -28,8 +28,14 @@ typedef enum {
 void sensor_filter_set_profile_params(sensor_filter_profile_t profile,
                                       float beta_h, float k_clamp, float epsilon_mad);
 
-// Reset ALL filter internal states (gyro EMA, accumulative medians/MADs, prev-flight-state gates).
-void sensor_filter_reset(void);
+// Biquad params (Direct Form I):
+// y[n] = b0*x[n] + b1*x[n-1] + b2*x[n-2] - a1*y[n-1] - a2*y[n-2]
+void sensor_filter_set_biquad_params(sensor_filter_profile_t profile,
+                                     float b0, float b1, float b2,
+                                     float a1, float a2);
+
+/* ---------- Filters ---------- */
+void sensor_filter_reset(void);  // resets all internal states
 
 // In-place filters (modify the structs you pass in).
 // `flight_state` is used to re-seed states when it changes.
