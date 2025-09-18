@@ -91,17 +91,6 @@ static inline float hampel_clamp(float sample, float med_new, float mad_new, flo
     return sample;
 }
 
-/* ======================
-   Low-g ACC biquad DF1 state
-   (x1,x2 = prior inputs; y1,y2 = prior outputs)
-   ====================== */
-static float s_acc_x1 = 0.0f, s_acc_x2 = 0.0f;
-static float s_acc_y1 = 0.0f, s_acc_y2 = 0.0f;
-static float s_acc_y1_y = 0.0f, s_acc_y1_z = 0.0f; // per-axis split states
-static float s_acc_y2_y = 0.0f, s_acc_y2_z = 0.0f;
-static float s_acc_x1_y = 0.0f, s_acc_x2_y = 0.0f;
-static float s_acc_x1_z = 0.0f, s_acc_x2_z = 0.0f;
-
 // (X, Y, Z axes each need their own history)
 typedef struct { float x1,x2,y1,y2; } biquad_hist_t;
 static biquad_hist_t s_hist_acc_x = {0}, s_hist_acc_y = {0}, s_hist_acc_z = {0};
