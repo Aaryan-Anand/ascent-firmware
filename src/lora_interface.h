@@ -7,7 +7,7 @@
 
 #define LORA_FREQ 928e6
 
-//#define LORA_DEBUG
+#define LORA_DEBUG
 
 // ONE BYTE MESSAGE PAYLOADS
  

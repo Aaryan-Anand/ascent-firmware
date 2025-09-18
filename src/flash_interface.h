@@ -33,12 +33,18 @@ void flash_flight_init(void);
 
 bool flash_prepare_for_flight(void);
 
-void flash_dump_to_serial(void);
+void flash_dump_to_serial(int bank);
 
 void flash_write_packet(flash_packet *packet);
 
 void flash_queue_packet(flash_packet *packet);
 
 void flash_write_queue(int64_t max_time);
+
+int32_t flash_get_last_used_bank();
+
+void flash_print_stats();
+
+void flash_blank_slate();
 
 #endif
