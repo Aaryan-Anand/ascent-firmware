@@ -472,7 +472,8 @@ void init_boot_sequence(void) {
     vTaskDelay(pdMS_TO_TICKS(10));
 
     bno_flight_init();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
+    calibrate_gyr_bias_5s(true);
 
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
