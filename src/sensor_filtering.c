@@ -20,7 +20,7 @@ static robust_params_t s_params[SENSOR_PROFILE_COUNT] = {
     [SENSOR_PROFILE_LOW_G_ACC] = { 0.03f, 5.0f, 1e-6f },
     [SENSOR_PROFILE_GYRO]      = { 0.03f, 5.0f, 1e-6f },
     [SENSOR_PROFILE_MAG]       = { 0.03f, 5.0f, 1e-6f },
-    [SENSOR_PROFILE_HIGH_G_ACC]= { 0.03f, 5.0f, 1e-6f },
+    [SENSOR_PROFILE_HIGH_G_ACC]= { 0.05f, 6.0f, 1e-6f },
 };
 
 // Defaults: only low-g ACC has a biquad configured initially (your constants)
@@ -34,7 +34,13 @@ static biquad_params_t s_biquad[SENSOR_PROFILE_COUNT] = {
     },
     [SENSOR_PROFILE_GYRO]       = {0,0,0,0,0},
     [SENSOR_PROFILE_MAG]        = {0,0,0,0,0},
-    [SENSOR_PROFILE_HIGH_G_ACC] = {0,0,0,0,0},
+    [SENSOR_PROFILE_HIGH_G_ACC] = { // default to same as LOW_G_ACC
+        .b0 = 0.391335773f,
+        .b1 = 0.782671545f,
+        .b2 = 0.391335773f,
+        .a1 = 0.369527377f,
+        .a2 = 0.195815713f
+    },
 };
 
 void sensor_filter_set_profile_params(sensor_filter_profile_t profile,
@@ -106,6 +112,19 @@ static inline float biquad_df1(const biquad_params_t* p, biquad_hist_t* h, float
 }
 
 /* ======================
+   High-g ACC Hampel state
+   ====================== */
+static bool    s_hg_initialized = false;
+static uint8_t s_hg_prev_state  = 0;
+
+// Per-axis cumulative "median" (EMA toward sample) and MAD
+static float s_hg_med_x = 0.0f, s_hg_med_y = 0.0f, s_hg_med_z = 0.0f;
+static float s_hg_mad_x = 0.0f, s_hg_mad_y = 0.0f, s_hg_mad_z = 0.0f;
+
+// Biquad histories for high-g
+static biquad_hist_t s_hist_hg_x = {0}, s_hist_hg_y = {0}, s_hist_hg_z = {0};
+
+/* ======================
    Public API
    ====================== */
 void sensor_filter_reset(void) {
@@ -123,6 +142,17 @@ void sensor_filter_reset(void) {
     s_hist_acc_x = (biquad_hist_t){0};
     s_hist_acc_y = (biquad_hist_t){0};
     s_hist_acc_z = (biquad_hist_t){0};
+
+    // high-g acc (clamp)
+    s_hg_initialized = false;
+    s_hg_prev_state  = 0;
+    s_hg_med_x = s_hg_med_y = s_hg_med_z = 0.0f;
+    s_hg_mad_x = s_hg_mad_y = s_hg_mad_z = 0.0f;
+
+    // high-g acc (biquad)
+    s_hist_hg_x = (biquad_hist_t){0};
+    s_hist_hg_y = (biquad_hist_t){0};
+    s_hist_hg_z = (biquad_hist_t){0};
 }
 
 void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state) {
@@ -205,6 +235,58 @@ void sensor_filter_mag(imu_local_3d_t* local_mag, uint8_t flight_state) {
 }
 
 void sensor_filter_high_g_acc(imu_float_3d_t* high_g_acc, uint8_t flight_state) {
-    (void)flight_state; (void)high_g_acc;
-    // pass-through for now
+    if (!high_g_acc) return;
+
+    const robust_params_t rp = s_params[SENSOR_PROFILE_HIGH_G_ACC];
+    const biquad_params_t bp = s_biquad[SENSOR_PROFILE_HIGH_G_ACC];
+
+    // Convert incoming double samples to float for internal processing
+    float x_in = (float)high_g_acc->x;
+    float y_in = (float)high_g_acc->y;
+    float z_in = (float)high_g_acc->z;
+
+    // Re-seed on flight-state change or first run
+    if (!s_hg_initialized || flight_state != s_hg_prev_state) {
+        s_hg_prev_state  = flight_state;
+        s_hg_initialized = true;
+
+        // Seed Hampel (median = current, MAD = eps)
+        s_hg_med_x = x_in;  s_hg_mad_x = rp.epsilon_mad;
+        s_hg_med_y = y_in;  s_hg_mad_y = rp.epsilon_mad;
+        s_hg_med_z = z_in;  s_hg_mad_z = rp.epsilon_mad;
+
+        // Seed biquad histories to current (avoid startup pop); pass-through this frame
+        s_hist_hg_x = (biquad_hist_t){ .x1=x_in, .x2=x_in, .y1=x_in, .y2=x_in };
+        s_hist_hg_y = (biquad_hist_t){ .x1=y_in, .x2=y_in, .y1=y_in, .y2=y_in };
+        s_hist_hg_z = (biquad_hist_t){ .x1=z_in, .x2=z_in, .y1=z_in, .y2=z_in };
+
+        return;
+    }
+
+    /* ---- 1) Hampel-style clamp per axis (in-place) ---- */
+    float med_x_new = hampel_update_median(s_hg_med_x, x_in, rp.beta_h);
+    float mad_x_new = hampel_update_mad(s_hg_mad_x, s_hg_med_x, x_in, rp.beta_h, rp.epsilon_mad);
+    float x_clamped = hampel_clamp(x_in, med_x_new, mad_x_new, rp.k_clamp);
+
+    float med_y_new = hampel_update_median(s_hg_med_y, y_in, rp.beta_h);
+    float mad_y_new = hampel_update_mad(s_hg_mad_y, s_hg_med_y, y_in, rp.beta_h, rp.epsilon_mad);
+    float y_clamped = hampel_clamp(y_in, med_y_new, mad_y_new, rp.k_clamp);
+
+    float med_z_new = hampel_update_median(s_hg_med_z, z_in, rp.beta_h);
+    float mad_z_new = hampel_update_mad(s_hg_mad_z, s_hg_med_z, z_in, rp.beta_h, rp.epsilon_mad);
+    float z_clamped = hampel_clamp(z_in, med_z_new, mad_z_new, rp.k_clamp);
+
+    // commit clamp state
+    s_hg_med_x = med_x_new; s_hg_mad_x = mad_x_new;
+    s_hg_med_y = med_y_new; s_hg_mad_y = mad_y_new;
+    s_hg_med_z = med_z_new; s_hg_mad_z = mad_z_new;
+
+    /* ---- 2) Biquad (DF1) on clamped values; write back in-place ---- */
+    float x_f = biquad_df1(&bp, &s_hist_hg_x, x_clamped);
+    float y_f = biquad_df1(&bp, &s_hist_hg_y, y_clamped);
+    float z_f = biquad_df1(&bp, &s_hist_hg_z, z_clamped);
+
+    high_g_acc->x = (double)x_f;
+    high_g_acc->y = (double)y_f;
+    high_g_acc->z = (double)z_f;
 }
