@@ -21,7 +21,7 @@ bool serial_util_readline_nonblocking(char *buf, int buf_len, int *index_ptr, Ti
             return false;  // timeout, incomplete line
         }
 
-        if (ch == '\n') {
+        if (ch == '\n' || ch == '\r') {
             buf[idx] = '\0';
             *index_ptr = 0;
             return true;  // full line read

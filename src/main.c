@@ -46,8 +46,11 @@ static tNeopixelContext neopixel;
 #include "lora_interface.h"
 #include "flash_interface.h"
 #include "flight.h"
+#include "flight_config.h"
 #include "sensor_fusion.h"
 #include "serial_util.h"
+
+#include "sitl.h"
 
 #include "sensor_fusion.h"
 // #define GENERAL_DEBUG
@@ -106,7 +109,7 @@ void primary_task(void *pvParameters) {
                 lora_queue_packet(&telemetry);
 
                 // we still need to call flight_update to get out of preflight so we just call it with all zeros
-                if (flight_update(0, 0, 0, 0, 0)) {
+                if (flight_update(0, 0, 0, 0)) {
                     if (get_flight_state() == FS_ON_PAD) {
                         update_loop_rate();
                         high_power_mode();
@@ -131,9 +134,23 @@ void primary_task(void *pvParameters) {
                 orientation_t orient;
                 baro_double_t baro;
 
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+                // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+#ifdef IS_SITL
+                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
+                local_acc.x = get_current_vertical_accl();
+                printf("Serial: %f\n", local_acc.x);
+#else
+                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
+#endif
+
                 h3lis331dl_get_local(&high_g_acc, true);
+
+                // bmp390_get_local(&baro);
+#ifdef IS_SITL
+                baro.alt = get_current_baro_alt();
+#else
                 bmp390_get_local(&baro);
+#endif
                 
                 if((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
                     get_acc_orientation(&local_acc, &orient);
@@ -154,7 +171,7 @@ void primary_task(void *pvParameters) {
                 accl_update(local_acc, &acc);
 
                 float phi = 0;
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x, phi)) {
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();

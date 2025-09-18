@@ -22,8 +22,7 @@ bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float raw_vertical_acl,
-    float phi
+    float raw_vertical_acl
 );
 
 uint8_t get_flight_state(void);

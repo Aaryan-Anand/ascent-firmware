@@ -9,4 +9,5 @@ idf_component_register(
         "flight.c"
         "sensor_fusion.c"
         "serial_util.c"
+        "sitl.c"
 )
