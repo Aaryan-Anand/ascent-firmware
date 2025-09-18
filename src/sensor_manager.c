@@ -7,20 +7,13 @@
 #include "ascent_r2_hardware_definition.h"
 #include "globals.h"
 #include "freertos/semphr.h"
+#include "esp_timer.h"
 
-// These variables are defined in main.c, so we use extern here
-// These extern definitions come from globals.h
-// extern imu_raw_3d_t acc, gyr, mag;
-// extern imu_float_3d_t high_g_acc;
-// extern baro_double_t baro;
-
-// Keep these variable definitions
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;
 
-// Keep these calibration parameters
-float bmp_scaling = 1.0f;  // Default to no scaling
-float bmp_bias = 0.0f;     // Default to no bias
+float bmp_scaling = 1.0f;
+float bmp_bias = 0.0f;
 
 // Keep these correction matrices and bias vectors
 float acc_correction_matrix[3][3] = {
@@ -48,7 +41,7 @@ float high_g_correction_matrix[3][3] = {
 };
 
 float acc_bias_vector[3] = {0.119969f, 0.363178f, -0.241031f};
-float gyr_bias_vector[3] = {0.071024621f, 0.023225296f, 0.081309365f};
+float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float mag_bias_vector[3] = {979.674588, 499.134952, -895.484539};
 float high_g_bias_vector[3] = {-0.219985f, 0.266331f, 0.154979f};
 
@@ -245,15 +238,38 @@ void baro_update(const baro_double_t * const baro, float *agl, float *vel, float
     *avg_vel = average_barometric_velocity;
 }
 
-// Remove all the wrapper functions that just call interface functions
-// This includes:
-// - bno_get
-// - lis331_get
-// - bmp_get
-// - apply_calibration
-// - bno_calib
-// - lis331_calib
-// - bno_local
-// - lis331_local
-// - bmp_calib
-// - bmp_local
+void calibrate_gyr_bias_5s(bool use_filtered)
+{
+    const int64_t duration_us = 5 * 1000 * 1000;
+    const TickType_t sample_period = pdMS_TO_TICKS(5);
+
+    imu_local_3d_t acc, gyr, mag;
+    double sx = 0.0, sy = 0.0, sz = 0.0;
+    uint32_t n = 0;
+
+    const int64_t t0 = esp_timer_get_time();
+    while ((esp_timer_get_time() - t0) < duration_us) {
+        bno055_get_local(&acc, &gyr, &mag, use_filtered);
+
+        sx += (double)gyr.x;
+        sy += (double)gyr.y;
+        sz += (double)gyr.z;
+        n++;
+
+        vTaskDelay(sample_period);
+    }
+
+    if (n == 0) return;
+
+    gyr_bias_vector[0] = -(float)(sx / (double)n);
+    gyr_bias_vector[1] = -(float)(sy / (double)n);
+    gyr_bias_vector[2] = -(float)(sz / (double)n);
+
+    bno055_set_calibration(
+        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
+        acc_bias_vector, gyr_bias_vector, mag_bias_vector
+    );
+
+    printf("Gyro bias updated (deg/s): bx=%f by=%f bz=%f (N=%u)\n",
+           gyr_bias_vector[0], gyr_bias_vector[1], gyr_bias_vector[2], (unsigned)n);
+}
