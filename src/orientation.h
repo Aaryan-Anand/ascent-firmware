@@ -38,6 +38,8 @@ void orientation_sync_euler_from_quat(orientation_t* s);
 void orientation_make_quat_from_euler(float roll_deg, float pitch_deg, float yaw_deg,
                                       float* qw, float* qx, float* qy, float* qz);
 
+void orientation_init_from_gravity(orientation_t* s, bool use_filtered);
+
 #ifdef __cplusplus
 }
 #endif
