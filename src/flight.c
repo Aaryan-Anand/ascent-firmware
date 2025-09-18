@@ -37,39 +37,34 @@ bool flight_update_boost(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float xacc,
-    float phi
+    float xacc
 );
 bool flight_update_sust(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float xacc,
-    float phi
+    float xacc
 );
 
 bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float xacc,
-    float phi
+    float xacc
 ) {
 #ifdef IS_BOOSTER
     return flight_update_boost(
         barometric_agl,
         barometric_velocity,
         average_barometric_velocity,
-        xacc,
-        phi
+        xacc
     );
 #else
     return flight_update_sust(
         barometric_agl,
         barometric_velocity,
         average_barometric_velocity,
-        xacc,
-        phi
+        xacc
     );
 #endif
 }
@@ -78,14 +73,12 @@ bool flight_update_sust(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float xacc,
-    float phi
+    float xacc
 ) {
     // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
 
     static int count1 = 0;
     static int count2 = 0;
-    static int count3 = 0;
 
     uint8_t pre = flight_state;
 
@@ -123,27 +116,23 @@ bool flight_update_sust(
             break;
 
         case FS_COAST_BOOSTER:
-            if (xacc < 0) {
-                count3++;
-            }
-
             if (xacc > ENGINE_GS) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
+            if (APPO_COND) {
+                count2++;
+            } else {
+                count2 = 0;
+            }
+
             if (count2 >= 5) {
                 deploy(APPO);
-                printf("Delpy appo\n");
                 flight_state = FS_UNDER_DROGUES;
             } else if (count1 >= 5) {
                 flight_state = FS_SUSTAINER;
-            } else if (count3 >= 75) {
-                if (fabsf(phi) < 30) {
-                    deploy(PYRO_CHANNEL_4);
-                    printf("Delpy channel 4 (motor)\n");
-                }
             }
             break;
 
@@ -167,7 +156,6 @@ bool flight_update_sust(
             }
 
             if (count1 >= 5) {
-                printf("Delpy appo\n");
                 deploy(APPO);
                 flight_state = FS_UNDER_DROGUES;
             }
@@ -187,7 +175,6 @@ bool flight_update_sust(
             }
 
             if (count1 >= 50 || count2 >= 5) {
-                printf("Delpy mains\n");
                 deploy(MAINS);
                 flight_state = FS_UNDER_MAINS;
             }
@@ -217,7 +204,6 @@ bool flight_update_sust(
     if (flight_state != pre) {
         count1 = 0;
         count2 = 0;
-        count3 = 0;
 
         printf("Changing flight state, now: %s\n", get_flight_state_name());
     }
@@ -229,8 +215,7 @@ bool flight_update_boost(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
-    float xacc,
-    float phi
+    float xacc
 ) {
     // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
 
