@@ -14,6 +14,7 @@
 #include <rom/ets_sys.h>
 #include "driver/uart.h"
 #include "math.h"
+#include "orientation.h"
 
 #include "neopixel.h"
 #define PIXEL_COUNT  1
@@ -132,8 +133,7 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
                 imu_local_3d_t local_acc, local_gyr, local_mag;
                 imu_float_3d_t high_g_acc;
-                dcs_3d_t body_relative_dcs;
-                orientation_t orient;
+                //dcs_3d_t body_relative_dcs;
                 baro_double_t baro;
 
                 // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
@@ -154,15 +154,7 @@ void primary_task(void *pvParameters) {
                 bmp390_get_local(&baro);
 #endif
                 
-                if((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
-                    get_acc_orientation(&local_acc, &orient);
-                }
-                else {
-                    update_orientation_from_gyro(&local_gyr);
-                    get_orientation_euler(&orient);
-                }
-                
-                //printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
+                //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
                 
                 float barometric_agl;
                 float barometric_velocity;
@@ -191,7 +183,14 @@ void primary_task(void *pvParameters) {
                 }
 
                 // always queue up latest telemetry for secondary task
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, local_gyr.x, numSV, flight_state);
+                float yaw = 0, pitch = 0, roll = 0;
+                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+                    yaw = g_orientation.yaw;
+                    pitch = g_orientation.pitch;
+                    roll = g_orientation.roll;
+                    xSemaphoreGive(g_orientation_mutex);
+                }
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
@@ -274,23 +273,26 @@ void fusion_debug_task(void *pvParameters) {
     while (1) {
         imu_local_3d_t local_acc, local_gyr, local_mag;
         imu_float_3d_t high_g_acc;
-        dcs_3d_t body_relative_dcs;
-        orientation_t orient;
+        // Use shared orientation state
         baro_double_t baro;
 
         bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
         h3lis331dl_get_local(&high_g_acc, true);
         bmp390_get_local(&baro);
         
-        if(false) {
-            get_acc_orientation(&local_acc, &orient);
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            xSemaphoreGive(g_orientation_mutex);
+        } else {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
         }
-        else {
-            update_orientation_from_gyro(&local_gyr);
-            get_orientation_euler(&orient);
-        }
-        
-        printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        //printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        float yaw = g_orientation.yaw;
+        float pitch = g_orientation.pitch;
+        float roll = g_orientation.roll;
+        printf("orient: %f \t %f \t %f\n", yaw, pitch, roll);
+        //printf("filtered acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        //printf("filtered acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
         
         float barometric_agl;
         float barometric_velocity;
@@ -327,6 +329,7 @@ void app_main(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     ascent_beep();
+    globals_init();
     init_boot_sequence();
 
     // Set origin vectors during boot sequence
@@ -371,6 +374,8 @@ void app_main(void) {
     flash_print_stats();
     printf("========================\n");
 
+
+    orientation_init_quat(&g_orientation, 1.0f, 0.0f, 0.0f, 0.0f);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
 #ifdef ARM_REGARDLESS_OF_TXLOCK
