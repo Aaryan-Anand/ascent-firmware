@@ -271,7 +271,6 @@ int fusion_debug_loop_fq = 100;
 TickType_t xFrequency_fusion_debug;
 void fusion_debug_task(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    uint8_t flight_state = 1;
     while (1) {
         imu_local_3d_t local_acc, local_gyr, local_mag;
         imu_float_3d_t high_g_acc;
@@ -282,18 +281,11 @@ void fusion_debug_task(void *pvParameters) {
         h3lis331dl_get_local(&high_g_acc, true);
         bmp390_get_local(&baro);
         
-        sensor_filter_acc(&local_acc, flight_state);
-        sensor_filter_gyr(&local_gyr, flight_state);
-        sensor_filter_mag(&local_mag, flight_state);
-        sensor_filter_high_g_acc(&high_g_acc, flight_state);
-
         if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
-            orientation_sync_euler_from_quat(&g_orientation);
             xSemaphoreGive(g_orientation_mutex);
         } else {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
-            orientation_sync_euler_from_quat(&g_orientation);
         }
         //printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
         float yaw = g_orientation.yaw;
