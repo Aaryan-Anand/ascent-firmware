@@ -5,6 +5,7 @@ idf_component_register(
         "orientation.c"
         "beep.c"
         "sensor_manager.c"
+        "sensor_filtering.c"
         "lora_interface.c"
         "flash_interface.c"
         "flight.c"
