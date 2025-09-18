@@ -282,9 +282,11 @@ void fusion_debug_task(void *pvParameters) {
         
         if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
             xSemaphoreGive(g_orientation_mutex);
         } else {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
         }
         //printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
         float yaw = g_orientation.yaw;
