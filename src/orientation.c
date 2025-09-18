@@ -136,4 +136,6 @@ void orientation_update_from_euler_rates(orientation_t* s,
 void orientation_sync_euler_from_quat(orientation_t* s) {
     if (!s) return;
     euler_from_quat_excel(s->qw, s->qx, s->qy, s->qz, &s->roll, &s->pitch, &s->yaw);
+    s->roll = wrap180(s->roll + 90.0f);
+    s->yaw  = wrap180(s->yaw  + 90.0f);
 }
