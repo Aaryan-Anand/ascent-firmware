@@ -1,7 +1,8 @@
 // orientation.c
 #include "orientation.h"
 #include <math.h>
-
+#include <float.h>
+#include "interface_bno055.h"
 #ifdef ESP_PLATFORM
 #include "esp_timer.h"
 #endif
@@ -137,4 +138,28 @@ void orientation_sync_euler_from_quat(orientation_t* s) {
     euler_from_quat_excel(s->qw, s->qx, s->qy, s->qz, &s->roll, &s->pitch, &s->yaw);
     s->roll = wrap180(s->roll + 90.0f);
     s->yaw  = wrap180(s->yaw  + 90.0f);
+}
+
+void orientation_init_from_gravity(orientation_t* s, bool use_filtered)
+{
+    if (!s) return;
+
+    imu_local_3d_t acc, gyr, mag;
+    bno055_get_local(&acc, &gyr, &mag, use_filtered);
+
+    float ax = acc.x, ay = acc.y, az = acc.z;
+    float n2 = ax*ax + ay*ay + az*az;
+    if (n2 <= FLT_EPSILON) {
+        orientation_init_quat(s, 1.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+    float invn = 1.0f / sqrtf(n2);
+    ax *= invn; ay *= invn; az *= invn;
+
+    float pitch_deg = (180.0f / (float)M_PI) * atan2f(-az, -ax);
+
+    float qw, qx, qy, qz;
+    orientation_make_quat_from_euler(0.0f, pitch_deg, 0.0f, &qw, &qx, &qy, &qz);
+
+    orientation_init_quat(s, qw, qx, qy, qz);
 }
