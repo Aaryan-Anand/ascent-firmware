@@ -21,7 +21,7 @@
 #define NEOPIXEL_PIN GPIO_NUM_21
 static tNeopixelContext neopixel;
 
-#define FUSION_DEBUG
+//#define FUSION_DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -58,6 +58,7 @@ static tNeopixelContext neopixel;
 
 #include "sensor_fusion.h"
 // #define GENERAL_DEBUG
+// #define ARM_REGARDLESS_OF_TXLOCK
 
 void validate_esp32(void);
 void init_boot_sequence(void);
@@ -157,6 +158,20 @@ void primary_task(void *pvParameters) {
                 
                 //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
                 
+                sensor_filter_acc(&local_acc, flight_state);
+                sensor_filter_gyr(&local_gyr, flight_state);
+                sensor_filter_mag(&local_mag, flight_state);
+                sensor_filter_high_g_acc(&high_g_acc, flight_state);
+                
+                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+                    orientation_sync_euler_from_quat(&g_orientation);
+                    xSemaphoreGive(g_orientation_mutex);
+                } else {
+                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+                    orientation_sync_euler_from_quat(&g_orientation);
+                }
+
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
@@ -165,7 +180,7 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
 
-                float phi = 0;
+                // float phi = 0;
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
@@ -344,8 +359,6 @@ void app_main(void) {
 
     // Set origin vectors during boot sequence
 #ifndef FUSION_DEBUG
-    printf("Setting attitude vectors...\n");
-    get_initial_vectors();
 
     fail_if_barometer_bad();
 
@@ -373,7 +386,7 @@ void app_main(void) {
 
     beep_pyro_cont();
 #endif
-    // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+    // xTaskCreatePinnedToCore(meergolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
     high_power_mode();
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -583,7 +596,7 @@ void high_power_mode(void) {
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
     vTaskDelay(pdMS_TO_TICKS(1));
     
-    GPS_high_power_mode();
+    // GPS_high_power_mode(); // THIS DOES NOT FUCKING EXIST
 }
 
 uint8_t calc_pyro_arm(void) {
