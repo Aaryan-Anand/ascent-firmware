@@ -158,6 +158,13 @@ void sensor_filter_reset(void) {
 void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state) {
     if (!local_acc) return;
 
+    static uint8_t prev_flight_state = 0;
+    
+    if(prev_flight_state != flight_state) {
+        sensor_filter_reset();
+    }
+    prev_flight_state = flight_state;
+
     const robust_params_t rp = s_params[SENSOR_PROFILE_LOW_G_ACC];
     const biquad_params_t bp = s_biquad[SENSOR_PROFILE_LOW_G_ACC];
 
