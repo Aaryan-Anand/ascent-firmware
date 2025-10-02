@@ -50,14 +50,13 @@ void app_main(void) {
     i2c_init();
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
-    GPS_Init();
+    GPS_init();
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
 
     #ifndef MEASURE_PERFORMANCE
-    
-    GPS_ReqNavPVT(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
+    GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
     #endif
 
     #ifdef MEASURE_PERFORMANCE
@@ -66,7 +65,7 @@ void app_main(void) {
     uint64_t start = esp_timer_get_time();
 
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
-        GPS_ReqNavPVT(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
+        GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
     }
 
     uint64_t end = esp_timer_get_time();
