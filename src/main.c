@@ -14,11 +14,14 @@
 #include <rom/ets_sys.h>
 #include "driver/uart.h"
 #include "math.h"
+#include "orientation.h"
 
 #include "neopixel.h"
 #define PIXEL_COUNT  1
 #define NEOPIXEL_PIN GPIO_NUM_21
 static tNeopixelContext neopixel;
+
+//#define FUSION_DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -48,12 +51,14 @@ static tNeopixelContext neopixel;
 #include "flight.h"
 #include "flight_config.h"
 #include "sensor_fusion.h"
+#include "sensor_filtering.h"
 #include "serial_util.h"
 
 #include "sitl.h"
 
 #include "sensor_fusion.h"
 // #define GENERAL_DEBUG
+// #define ARM_REGARDLESS_OF_TXLOCK
 
 void validate_esp32(void);
 void init_boot_sequence(void);
@@ -130,8 +135,7 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
                 imu_local_3d_t local_acc, local_gyr, local_mag;
                 imu_float_3d_t high_g_acc;
-                dcs_3d_t body_relative_dcs;
-                orientation_t orient;
+                //dcs_3d_t body_relative_dcs;
                 baro_double_t baro;
 
                 // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
@@ -152,16 +156,22 @@ void primary_task(void *pvParameters) {
                 bmp390_get_local(&baro);
 #endif
                 
-                if((flight_state == FS_ON_PAD || flight_state == FS_UNDER_DROGUES || flight_state == FS_UNDER_MAINS) && fabs(sqrt(local_acc.x*local_acc.x + local_acc.y*local_acc.y + local_acc.z*local_acc.z) -9.792f) < 1.0f) {
-                    get_acc_orientation(&local_acc, &orient);
-                }
-                else {
-                    update_orientation_from_gyro(&local_gyr);
-                    get_orientation_euler(&orient);
-                }
+                //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
                 
-                //printf("orient: %f \t %f \t %f\n", orient.yaw, orient.pitch, orient.roll);
+                sensor_filter_acc(&local_acc, flight_state);
+                sensor_filter_gyr(&local_gyr, flight_state);
+                sensor_filter_mag(&local_mag, flight_state);
+                sensor_filter_high_g_acc(&high_g_acc, flight_state);
                 
+                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+                    orientation_sync_euler_from_quat(&g_orientation);
+                    xSemaphoreGive(g_orientation_mutex);
+                } else {
+                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+                    orientation_sync_euler_from_quat(&g_orientation);
+                }
+
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
@@ -170,7 +180,7 @@ void primary_task(void *pvParameters) {
                 imu_local_3d_t acc;
                 accl_update(local_acc, &acc);
 
-                float phi = 0;
+                // float phi = 0;
                 if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
@@ -189,7 +199,14 @@ void primary_task(void *pvParameters) {
                 }
 
                 // always queue up latest telemetry for secondary task
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, orient.yaw, orient.pitch, orient.roll, local_gyr.x, numSV, flight_state);
+                float yaw = 0, pitch = 0, roll = 0;
+                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+                    yaw = g_orientation.yaw;
+                    pitch = g_orientation.pitch;
+                    roll = g_orientation.roll;
+                    xSemaphoreGive(g_orientation_mutex);
+                }
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
@@ -263,6 +280,57 @@ void secondary_task(void *pvParameters) {
     }
 }
 
+#ifdef FUSION_DEBUG
+TaskHandle_t fusion_debug_task_handle;
+int fusion_debug_loop_fq = 100;
+TickType_t xFrequency_fusion_debug;
+void fusion_debug_task(void *pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint8_t flight_state = 1;
+    while (1) {
+        imu_local_3d_t local_acc, local_gyr, local_mag;
+        imu_float_3d_t high_g_acc;
+        // Use shared orientation state
+        baro_double_t baro;
+
+        bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+        h3lis331dl_get_local(&high_g_acc, true);
+        bmp390_get_local(&baro);
+        
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
+            xSemaphoreGive(g_orientation_mutex);
+        } else {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
+        }
+
+        sensor_filter_acc(&local_acc, flight_state);   // now applies Hampel-like clamp per axis
+        sensor_filter_gyr(&local_gyr, flight_state);
+        sensor_filter_mag(&local_mag, flight_state);
+        sensor_filter_high_g_acc(&high_g_acc, flight_state);
+
+        //printf("acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        float yaw = g_orientation.yaw;
+        float pitch = g_orientation.pitch;
+        float roll = g_orientation.roll;
+        printf("orient: %f \t %f \t %f\n", yaw, pitch, roll);
+        //printf("x:%f \t y:%f \t z:%f\n", local_acc.x, local_acc.y, local_acc.z);
+        //printf("filtered acc: %f \t %f \t %f\t mag: %f \t %f \t %f\t gyr: %f \t %f \t %f\n", local_acc.x, local_acc.y, local_acc.z, local_mag.x, local_mag.y, local_mag.z, local_gyr.x, local_gyr.y, local_gyr.z);
+        
+        float barometric_agl;
+        float barometric_velocity;
+        float average_barometric_velocity;
+        baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
+
+        imu_local_3d_t acc;
+        accl_update(local_acc, &acc);
+        vTaskDelayUntil(&xLastWakeTime, xFrequency_fusion_debug);
+    }
+}
+#endif
+
 void app_main(void) {
     esp_err_t err;
     //TaskHandle_t megolavania_task_handle;
@@ -286,18 +354,17 @@ void app_main(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     ascent_beep();
+    globals_init();
     init_boot_sequence();
 
     // Set origin vectors during boot sequence
-    printf("Setting attitude vectors...\n");
-    get_initial_vectors();
+#ifndef FUSION_DEBUG
 
     fail_if_barometer_bad();
 
     break_beep();
     battery_beep();
     break_beep();
-
     serial_util_init();
 
     printf("========================\n");
@@ -318,8 +385,8 @@ void app_main(void) {
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
-
-    // xTaskCreatePinnedToCore(megolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+#endif
+    // xTaskCreatePinnedToCore(meergolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
     high_power_mode();
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -330,6 +397,8 @@ void app_main(void) {
     flash_print_stats();
     printf("========================\n");
 
+
+    orientation_init_from_gravity(&g_orientation, false);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
 #ifdef ARM_REGARDLESS_OF_TXLOCK
@@ -342,8 +411,13 @@ void app_main(void) {
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
     printf("Creating tasks\n");
+#ifdef FUSION_DEBUG
+    xFrequency_fusion_debug = pdMS_TO_TICKS(1000/fusion_debug_loop_fq);
+    xTaskCreatePinnedToCore(fusion_debug_task, "fusion_debug_task", 8192, NULL, 1, &fusion_debug_task_handle, 0);
+#else
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+#endif
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
@@ -411,7 +485,8 @@ void init_boot_sequence(void) {
     vTaskDelay(pdMS_TO_TICKS(10));
 
     bno_flight_init();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(100));
+    calibrate_gyr_bias_5s(true);
 
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -521,7 +596,7 @@ void high_power_mode(void) {
     h3lis331dl_set_power_mode(H3LIS331DL_NORMAL);
     vTaskDelay(pdMS_TO_TICKS(1));
     
-    GPS_high_power_mode();
+    // GPS_high_power_mode(); // THIS DOES NOT FUCKING EXIST
 }
 
 uint8_t calc_pyro_arm(void) {
