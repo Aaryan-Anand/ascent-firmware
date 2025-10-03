@@ -7,7 +7,7 @@
 #include <stdbool.h>
 
 #include "interface_bno055.h"    // imu_local_3d_t for acc/gyr/mag
-#include "interface_H3LIS331DL.h"   // imu_float_3d_t for high-g accel
+#include "interface_h3lis331dl.h"   // imu_float_3d_t for high-g accel
 
 #ifdef __cplusplus
 extern "C" {
