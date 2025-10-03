@@ -43,36 +43,39 @@ int32_t hMSL;
 uint8_t fixType;
 uint8_t numSV;
 
-#define MEASURE_PERFORMANCE
+// #define MEASURE_PERFORMANCE
 
 void app_main(void) {
     fflush(stdout);
+    
     i2c_init();
     vTaskDelay(3000 / portTICK_PERIOD_MS);
 
     GPS_init();
 
     vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-
+    
+    unsigned MEASUREMENTS = 5000;
     #ifndef MEASURE_PERFORMANCE
-    GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
+    MEASUREMENTS = 100;
     #endif
 
-    #ifdef MEASURE_PERFORMANCE
-    
-    const unsigned MEASUREMENTS = 5000;
     uint64_t start = esp_timer_get_time();
 
     for (int retries = 0; retries < MEASUREMENTS; retries++) {
         GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
+        #ifndef MEASURE_PERFORMANCE
+        printf("timestamp: %lu, lon: %ld, lat: %ld, height: %ld, hMSL: %ld, fixType: %d, numSV: %d\n", timestamp, lon, lat, height, hMSL, fixType, numSV);
+        #endif
     }
 
     uint64_t end = esp_timer_get_time();
 
+    #ifndef MEASURE_PERFORMANCE
+    printf("WAS NOT MEASURING PERFORMANCE\n");
+    #endif
     printf("%u iterations took %llu milliseconds (%llu microseconds per invocation)\n",
            MEASUREMENTS, (end - start)/1000, (end - start)/MEASUREMENTS);
 
-    #endif
 }
 
