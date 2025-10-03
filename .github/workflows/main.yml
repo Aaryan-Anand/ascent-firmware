@@ -21,7 +21,10 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Update Submodules
-        run: git submodule init && git submodule update | tree
+        run: git submodule update --init --recursive
+
+      - name: Validate submodules
+        run: tree
 
       - name: Build PlatformIO Project
         run: pio run
