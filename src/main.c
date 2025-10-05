@@ -60,6 +60,8 @@ static tNeopixelContext neopixel;
 // #define GENERAL_DEBUG
 // #define ARM_REGARDLESS_OF_TXLOCK
 
+SemaphoreHandle_t spi_bus_mutex = NULL;
+
 void validate_esp32(void);
 void init_boot_sequence(void);
 void beep_pyro_cont(void);
@@ -253,30 +255,32 @@ void primary_task(void *pvParameters) {
     }
 }
 
-TaskHandle_t secondary_task_handle;
-int secondary_loop_fq = 20;
-TickType_t xFrequency_secondary;
-void secondary_task(void *pvParameters) {
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
-    uint32_t cycle = 0;
-
-    bool toggle = false;
-
-    while (1) {
-        goober_payload_t telemetry;
-        lora_read_latest_queue_packet(&telemetry);
-        if (cycle % (uint32_t)(secondary_loop_fq/1) == 0) {
-            if (toggle) slave_lora_task(&telemetry);
-            toggle = !toggle;
+TaskHandle_t flash_task_handle;
+void flash_task(void *pvParameters) {
+    while(1) {
+        if (spi_bus_mutex != NULL) {
+            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                flash_write_queue(25000); // 25000 pulled from old secondary task frequency math
+                xSemaphoreGive(spi_bus_mutex);
+            } else {
+                printf("SPI BUS MUTEX TIMEOUT\n");
+            }
         }
+    }
+}
 
-        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            flash_write_queue(1000/secondary_loop_fq*1e3/2);
+TaskHandle_t lora_task_handle;
+void lora_task(void *pvParameters) {
+    goober_payload_t telemetry;
+    
+    while(1) {
+        if (spi_bus_mutex != NULL) {
+            lora_read_latest_queue_packet(&telemetry); // read latest telemetry packet from queue
+            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+                slave_lora_task(&telemetry); // TODO: replace w/ new lora logic
+                xSemaphoreGive(spi_bus_mutex);
+            }
         }
-
-        cycle = (cycle + 1) % secondary_loop_fq;
-        vTaskDelayUntil(&xLastWakeTime, xFrequency_secondary);
     }
 }
 
@@ -415,8 +419,12 @@ void app_main(void) {
     xFrequency_fusion_debug = pdMS_TO_TICKS(1000/fusion_debug_loop_fq);
     xTaskCreatePinnedToCore(fusion_debug_task, "fusion_debug_task", 8192, NULL, 1, &fusion_debug_task_handle, 0);
 #else
-    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
-    xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
+    xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1); // create primary task on core 1
+    
+    spi_bus_mutex = xSemaphoreCreateMutex(); // create the mutex for the spi bus
+
+    xTaskCreatePinnedToCore(flash_task, "flash_task", 8192, NULL, 1, &flash_task_handle, 0);
+    xTaskCreatePinnedToCore(lora_task, "lora_task", 8192, NULL, 1, &lora_task_handle, 0);
 #endif
 
     // this main will not exit here even though it looks like it will.
@@ -545,17 +553,14 @@ void update_loop_rate(void) {
         case FS_PREFLIGHT:
         case FS_LANDED:
             primary_loop_fq = 1;
-            secondary_loop_fq = 10;
             break;
 
         default:
             primary_loop_fq = 50;
-            secondary_loop_fq = 20;
             break;        
     }
 
     xFrequency_primary = pdMS_TO_TICKS(1000/primary_loop_fq);
-    xFrequency_secondary = pdMS_TO_TICKS(1000/secondary_loop_fq);
 }
 
 void low_power_mode_no_gps(void) {
