@@ -81,4 +81,10 @@ typedef struct {
 
 } goober_t;
 
+goober_t create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_lock, goober_msg_type_t message_class, uint8_t payload_size, goober_payload_t *payload);
+
+goober_t decode_packet(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t telemetry);
+
+goober_t create_response_packet(goober_msg_type_t message_type);
+
 goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, float altitude_agl, float vertical_velocity, float x_acc, float eul_x, float eul_y, float eul_z, float gyr_x, uint8_t sats, uint8_t flight_state);
