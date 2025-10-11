@@ -1,5 +1,5 @@
-#ifndef LORA_TASK_H
-#define LORA_TASK_H
+#ifndef LORA_INTERFACE_H
+#define LORA_INTERFACE_H
 
 #include "stdbool.h"
 #include "stdint.h"
@@ -23,7 +23,7 @@ void lora_queue_packet(goober_payload_t *payload);
 void lora_read_latest_queue_packet(goober_payload_t *payload);
 
 bool is_tx_lock(); //TODO: is this part of Goober or unique to LoRa?
-
+// ^ It is GOOBER stuff, goes in Goober.h
 bool should_wake_up();
             
 #endif
