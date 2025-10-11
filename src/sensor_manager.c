@@ -119,9 +119,9 @@ void bno_flight_init(){
         acc_bias_vector, gyr_bias_vector, mag_bias_vector
     );
 
-    bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);  //Normal power, 1kHz ODR, 16G range
+    bno_setoprmode(CONFIG);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_set_acc_amthres(10);
+    bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);  //Normal power, 1kHz ODR, 16G range
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_set_acc_int(true, true, true, true, true, true, 2); // HG on X/Y/Z
     vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -129,7 +129,10 @@ void bno_flight_init(){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setinterruptmask(false, true, false, false, false, false, false, false);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_setoprmode(CONFIG);
+    bno_set_acc_hgtresh(187);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    bno_set_acc_hgduration(10);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
 }
 
