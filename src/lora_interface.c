@@ -19,14 +19,10 @@
 
 // #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
-#define TELEM_PACKET_SIZE 51
 #define LOCATOR_PACKET_SIZE 16
 
 
 QueueHandle_t lora_packet_queue;
-
-#define APPO PYRO_CHANNEL_1
-#define MAINS PYRO_CHANNEL_2
 
 static bool deploy(pyro_channel_t channel)
 {
