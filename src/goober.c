@@ -4,7 +4,10 @@
 #include "string.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "sensor_manager.h"
 
+
+#define TELEM_PACKET_SIZE 51
 
 static bool CAMERA_ACTIVE = false;
 
@@ -13,6 +16,9 @@ static bool TXLOCK = false;
 _Atomic bool thread_safe_txlock = false;
 _Atomic bool thread_safe_should_wakeup = true;
 goober_t recv_packet;
+
+#define APPO PYRO_CHANNEL_1
+#define MAINS PYRO_CHANNEL_2
 
 void turn_on_cameras(void) {
     pyro_activate(PYRO_CHANNEL_3,0,1); 
@@ -64,7 +70,7 @@ goober_t create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_l
     return packet;
 }
 
-goober_t decode_packet(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t telemetry) {
+goober_t decode_packet(uint8_t *rx_buffer, uint8_t rx_buffer_size) {
 
 	recv_packet.DEV_ID = rx_buffer[0];
 	recv_packet.DEV_MODE = rx_buffer[1];
@@ -76,7 +82,7 @@ goober_t decode_packet(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payloa
   return recv_packet;
 }
 
-goober_t create_response_packet(goober_msg_type_t request_msg_type) {
+goober_t create_response_packet(goober_msg_type_t request_msg_type, goober_payload_t telemetry) {
 	goober_msg_type_t request_msg_type = recv_packet.MSG_CLS;
 	goober_payload_t request_payload;
 	memcpy(request_payload.raw, recv_packet.payload.raw, recv_packet.PAYLOAD_SIZE);
@@ -173,7 +179,7 @@ goober_t create_response_packet(goober_msg_type_t request_msg_type) {
 			resp_msg_payload.single_byte.single_byte_payload = 0x12;
 			resp_msg_payload_len = 1;
 
-			vTaskDelay(5000 / portTICK_PERIOD_MS); // forgive me for i have sinned.
+			vTaskDelay(5000 / portTICK_PERIOD_MS); 
 
 			//WAKEUP LOGIC GOES HERE @worldwalker2000
 			bool value = atomic_load(&thread_safe_should_wakeup);
