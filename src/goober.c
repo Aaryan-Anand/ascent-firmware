@@ -1,4 +1,6 @@
 #include "goober.h"
+#include "lora_interface.h"
+#include "driver_pyro.h"
 
 goober_t create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_lock, goober_msg_type_t message_class, uint8_t payload_size, goober_payload_t *payload) {
     goober_t packet;
