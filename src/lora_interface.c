@@ -17,12 +17,11 @@
 #include "stdatomic.h"
 #include "sensor_manager.h"
 
-// #define LORA_DEBUG
 #define SLAVE_DEV_ID 0x41
-#define TELEM_PACKET_SIZE 51
+#define TELEM_PACKET_SIZE 51 // FIX THIS @abdul
 #define LOCATOR_PACKET_SIZE 16
 
-static bool TXLOCK = false;
+static bool TXLOCK = true;
 static bool CAMERA_ACTIVE = false;
 
 _Atomic bool thread_safe_txlock = false;
@@ -94,8 +93,8 @@ void lora_flight_init()
 	lora_enable_crc();
 
 	int cr = 1;
-	int bw = 7;
-	int sf = 11;
+	int bw = 9;
+	int sf = 7;
 
 	lora_set_coding_rate(cr);
 	//lora_set_coding_rate(CONFIG_CODING_RATE);
@@ -142,7 +141,8 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 	// printf("timestamp: %lld\n", payload.telemetry.timestamp);
 	#endif
 
-    payload.telemetry.timestamp = esp_timer_get_time();
+    payload.telemetry.timestamp = esp_timer_get_time() / 1000; // convert us to ms
+
 	#ifdef LORA_DEBUG
 	// printf("timestamp: %lld\n", payload.telemetry.timestamp);
 	#endif
@@ -151,9 +151,6 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
     payload.telemetry.altitude_agl = altitude_agl;
     payload.telemetry.vertical_velocity = vertical_velocity;
     payload.telemetry.x_acc = x_acc;
-    payload.telemetry.eul_x = eul_x;
-    payload.telemetry.eul_y = eul_y;
-    payload.telemetry.eul_z = eul_z;
     payload.telemetry.gyr_x = gyr_x;
 
 	uint8_t pyro_arm = 0;
@@ -182,8 +179,8 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
     payload.telemetry.pyro_state = pyro_arm;
 	payload.telemetry.sats = sats;
     payload.telemetry.flight_state = flight_state;
-	payload.telemetry.battery_voltage = (uint32_t)(psu_read_battery_voltage() * 100000);
-
+	float voltage = psu_read_battery_voltage();
+	payload.telemetry.battery_voltage = (uint16_t)(voltage * 2500);
     return payload;
 }
 
@@ -261,7 +258,7 @@ void lora_process(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t t
 	memcpy(request_payload.raw, recv_packet.payload.raw, recv_packet.PAYLOAD_SIZE);
 
 	goober_t resp;
-	goober_msg_type_t resp_msg_cls =0;
+	goober_msg_type_t resp_msg_cls = 0;
 	goober_payload_t resp_msg_payload;
 	uint8_t resp_msg_payload_len = 0;
 
@@ -406,7 +403,7 @@ void slave_lora_task(goober_payload_t *telemetry)
 		lora_receive(); // put into receive mode
 
 		while(waiting) {
-			if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(600)) { // Fixed timeout
+			if (xTaskGetTickCount() - start_time > pdMS_TO_TICKS(130)) { // Fixed timeout
 				#ifdef LORA_DEBUG
 				printf("LORA: Timeout waiting for packet after %ldms\n", (xTaskGetTickCount() - start_time) * portTICK_PERIOD_MS);
 				#endif
@@ -420,12 +417,12 @@ void slave_lora_task(goober_payload_t *telemetry)
 					for(int i = 0; i < rxLen; i++) {
 						printf("%02X ", buf[i]);
 					}
-					printf(" ");
+					printf(" \n\n");
 					#endif
 					TickType_t process_start_time = xTaskGetTickCount();
 					lora_process(buf, rxLen, *telemetry); // 45 ms max
 					#ifdef LORA_DEBUG
-					printf("Took %ldms to process packet\n", (xTaskGetTickCount() - process_start_time) * portTICK_PERIOD_MS);
+					printf("Took %ldms to process packet\n\n\n\n", (xTaskGetTickCount() - process_start_time) * portTICK_PERIOD_MS);
 					#endif
 				} else {
 					vTaskDelay(1);

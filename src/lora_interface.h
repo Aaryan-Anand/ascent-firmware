@@ -5,9 +5,7 @@
 #include "stdint.h"
 #include "lora.h"
 
-#define LORA_FREQ 928e6
-
-#define LORA_DEBUG
+#define LORA_FREQ 915e6
 
 // ONE BYTE MESSAGE PAYLOADS
  
@@ -41,26 +39,23 @@ typedef enum {
 } goober_msg_type_t;
 
 typedef struct {
-    int64_t timestamp;         // 8 bytes
+    uint32_t timestamp;        // 4 bytes
     int32_t latitude;          // 4 bytes
     int32_t longitude;         // 4 bytes
     float altitude_agl;        // 4 bytes
     float vertical_velocity;   // 4 bytes
     float x_acc;               // 4 bytes
-    float eul_x;               // 4 bytes
-    float eul_y;               // 4 bytes
-    float eul_z;               // 4 bytes
     float gyr_x;               // 4 bytes
     uint8_t pyro_state;        // 1 byte
     uint8_t sats;              // 1 byte
     uint8_t flight_state;      // 1 byte
-    uint32_t battery_voltage;     // 4 bytes
-} goober_post_telemetry_payload_t; // total: 51 bytes
+    uint16_t battery_voltage;  // 2 byte
+} goober_post_telemetry_payload_t;
 
 typedef struct {
     int64_t timestamp;         // 8 bytes
     int32_t latitude;          // 4 bytes
-    int32_t longitude;         // 4 bytes
+    int32_t longitude;         // 4 bytes   
 } goober_post_locator_payload_t; // total: 16 bytes
 
 typedef struct {

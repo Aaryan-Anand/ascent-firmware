@@ -255,16 +255,25 @@ void primary_task(void *pvParameters) {
     }
 }
 
+// this is really annoying when enabled
+// #define SPI_MUTEX_DEBUG
+
 TaskHandle_t flash_task_handle;
 void flash_task(void *pvParameters) {
     while(1) {
         if (spi_bus_mutex != NULL) {
-            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
+                #ifdef SPI_MUTEX_DEBUG
+                    printf("Flash task took SPI mutex\n");
+                #endif
                 flash_write_queue(25000); // 25000 pulled from old secondary task frequency math
                 xSemaphoreGive(spi_bus_mutex);
-            } else {
-                printf("SPI BUS MUTEX TIMEOUT\n");
             }
+            #ifdef SPI_MUTEX_DEBUG
+            else {
+                printf("Flash task failed to take SPI bus mutex!\n");
+            }
+            #endif
         }
     }
 }
@@ -275,11 +284,19 @@ void lora_task(void *pvParameters) {
     
     while(1) {
         if (spi_bus_mutex != NULL) {
-            lora_read_latest_queue_packet(&telemetry); // read latest telemetry packet from queue
-            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            if (xSemaphoreTake(spi_bus_mutex, pdMS_TO_TICKS(15)) == pdTRUE) {
+                #ifdef SPI_MUTEX_DEBUG
+                    printf("LoRa task took SPI mutex\n");
+                #endif
+                lora_read_latest_queue_packet(&telemetry); // read latest telemetry packet from queue
                 slave_lora_task(&telemetry); // TODO: replace w/ new lora logic
                 xSemaphoreGive(spi_bus_mutex);
             }
+            #ifdef SPI_MUTEX_DEBUG
+            else {
+                printf("LoRa task failed to take SPI bus mutex!\n");
+            }
+            #endif
         }
     }
 }
