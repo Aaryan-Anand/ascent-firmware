@@ -7,6 +7,8 @@
 #include "driver_pyro.h"
 #include "lora_interface.h"
 
+#include "goober.h"
+
 // static uint8_t flight_state = FS_PREFLIGHT;
 static uint8_t flight_state = FS_ON_PAD;
 
@@ -98,6 +100,8 @@ bool flight_update_sust(
 
             if (count1 >= 5) {
                 flight_state = FS_BOOSTER;
+                activate_txlock();
+                printf("Activated txlock from FSM\n");
             } else if (!should_wake_up() && count1 == 0) {
                 flight_state = FS_PREFLIGHT;
             }
@@ -240,6 +244,8 @@ bool flight_update_boost(
 
             if (count1 >= 5) {
                 flight_state = FS_BOOSTER;
+                activate_txlock();
+                printf("Activated txlock from FSM\n");
             } else if (!should_wake_up() && count1 == 0) {
                 flight_state = FS_PREFLIGHT;
             }
