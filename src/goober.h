@@ -95,4 +95,6 @@ bool is_tx_lock();
 
 bool should_wake_up();
 
+void activate_txlock();
+
 #endif

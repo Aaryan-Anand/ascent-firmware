@@ -267,14 +267,23 @@ void secondary_task(void *pvParameters) {
     goober_t rcv_packet;
     goober_t rsp_packet;
 
+    goober_t txlock_packet;
+
     while (1) {
         goober_payload_t telemetry_payload;
         peekLatestTelemetryPayload(&telemetry_payload);
+
         if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            rcv = lora_blocking_listen(&rcv_packet, 21);
-            if (rcv) {
-                rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
-                lora_transmit_packet(&rsp_packet);
+            if(!is_tx_lock()) {
+                rcv = lora_blocking_listen(&rcv_packet, 21);
+                if (rcv) {
+                    rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
+                    lora_transmit_packet(&rsp_packet);
+                }
+            } else {
+                txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
+                txlock_packet.DEV_MODE = 0x08;
+                lora_transmit_packet(&txlock_packet);
             }
         }
 

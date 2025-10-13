@@ -99,8 +99,8 @@ goober_t gooberCreatePacket(uint8_t dev_id, bool is_master, bool tx_intent, bool
     packet.SEQ_ID = seq_counter++;
     
     if (seq_counter == 0x00 || seq_counter == 0xFF) {
-		  seq_counter = 0x01;
-	  }
+		seq_counter = 0x01;
+	}
 
     packet.MSG_CLS = (uint8_t)message_class;
 
@@ -344,4 +344,8 @@ bool is_tx_lock() {
 
 bool should_wake_up() {
 	return atomic_load(&thread_safe_should_wakeup);
+}
+
+void activate_txlock() {
+	atomic_store(&thread_safe_txlock, true);
 }
