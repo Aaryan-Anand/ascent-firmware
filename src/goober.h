@@ -36,21 +36,18 @@ typedef enum {
 } goober_msg_type_t;
 
 typedef struct {
-    int64_t timestamp;         // 8 bytes
+    uint32_t timestamp;        // 4 bytes
     int32_t latitude;          // 4 bytes
     int32_t longitude;         // 4 bytes
     float altitude_agl;        // 4 bytes
     float vertical_velocity;   // 4 bytes
     float x_acc;               // 4 bytes
-    float eul_x;               // 4 bytes
-    float eul_y;               // 4 bytes
-    float eul_z;               // 4 bytes
     float gyr_x;               // 4 bytes
     uint8_t pyro_state;        // 1 byte
     uint8_t sats;              // 1 byte
     uint8_t flight_state;      // 1 byte
-    uint32_t battery_voltage;     // 4 bytes
-} goober_post_telemetry_payload_t; // total: 51 bytes
+    uint16_t battery_voltage;  // 2 byte
+} goober_post_telemetry_payload_t;
 
 typedef struct {
     int64_t timestamp;         // 8 bytes
@@ -84,14 +81,18 @@ typedef struct {
 
 } goober_t;
 
-goober_t create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_lock, goober_msg_type_t message_class, uint8_t payload_size, goober_payload_t *payload);
+goober_t gooberCreatePacket(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_lock, goober_msg_type_t message_class, uint8_t payload_size, goober_payload_t *payload);
 
-goober_t decode_packet(uint8_t *rx_buffer, uint8_t rx_buffer_size, goober_payload_t telemetry);
+goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry);
 
-goober_t create_response_packet(goober_msg_type_t message_type);
+goober_payload_t gooberCreateTelemetry(int32_t latitude, int32_t longitude, float altitude_agl, float vertical_velocity, float x_acc, float eul_x, float eul_y, float eul_z, float gyr_x, uint8_t sats, uint8_t flight_state);
 
-goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, float altitude_agl, float vertical_velocity, float x_acc, float eul_x, float eul_y, float eul_z, float gyr_x, uint8_t sats, uint8_t flight_state);
+goober_t gooberParse(uint8_t *rx_buffer, uint8_t rx_buffer_size);
+
+void gooberSerialize(goober_t *packet, uint8_t *tx_buffer, uint8_t tx_buffer_size);
 
 bool is_tx_lock();
+
 bool should_wake_up();
+
 #endif

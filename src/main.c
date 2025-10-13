@@ -36,6 +36,8 @@ static tNeopixelContext neopixel;
 #include "driver_w25qxx.h"
 #include "driver/gpio.h"
 
+#include "goober.h"
+
 #include "i2c_manager.h"
 #include "spi_manager.h"
 
@@ -110,8 +112,8 @@ void primary_task(void *pvParameters) {
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
 
                 uint8_t current_flight_state = get_flight_state();
-                goober_payload_t telemetry = create_telemetry_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
-                lora_queue_packet(&telemetry);
+                goober_payload_t telemetry = gooberCreateTelemetry(0, 0, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
+                queueLatestTelemetryPayload(&telemetry);
 
                 // we still need to call flight_update to get out of preflight so we just call it with all zeros
                 if (flight_update(0, 0, 0, 0)) {
@@ -206,8 +208,8 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
-                lora_queue_packet(&telemetry);
+                goober_payload_t telemetry = gooberCreateTelemetry(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                queueLatestTelemetryPayload(&telemetry);
 
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
@@ -242,8 +244,8 @@ void primary_task(void *pvParameters) {
                 uint32_t UTCtstamp;
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
 
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
-                lora_queue_packet(&telemetry);
+                goober_payload_t locator_packet = gooberCreateTelemetry(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state); // todo: make actual locator message - abdul
+                queueLatestTelemetryPayload(&locator_packet);
             }
         }
 
@@ -261,14 +263,19 @@ void secondary_task(void *pvParameters) {
 
     uint32_t cycle = 0;
 
-    bool toggle = false;
+    int rcv;
+    goober_t rcv_packet;
+    goober_t rsp_packet;
 
     while (1) {
-        goober_payload_t telemetry;
-        lora_read_latest_queue_packet(&telemetry);
-        if (cycle % (uint32_t)(secondary_loop_fq/1) == 0) {
-            if (toggle) slave_lora_task(&telemetry);
-            toggle = !toggle;
+        goober_payload_t telemetry_payload;
+        peekLatestTelemetryPayload(&telemetry_payload);
+        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+            rcv = lora_blocking_listen(&rcv_packet, 21);
+            if (rcv) {
+                rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
+                lora_transmit_packet(&rsp_packet);
+            }
         }
 
         if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {

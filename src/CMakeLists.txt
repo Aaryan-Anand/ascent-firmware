@@ -12,4 +12,5 @@ idf_component_register(
         "sensor_fusion.c"
         "serial_util.c"
         "sitl.c"
+        "goober.c"
 )
