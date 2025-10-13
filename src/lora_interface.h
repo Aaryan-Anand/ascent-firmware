@@ -6,22 +6,18 @@
 #include "lora.h"
 #include "goober.h"
 
-#define LORA_FREQ 928e6
+#define LORA_FREQ 920e6
 
 #define LORA_DEBUG
 
-void lora_flight_init();
+void queueLatestTelemetryPayload(goober_payload_t *payload);
 
-goober_t lora_create_packet(uint8_t dev_id, bool is_master, bool tx_intent, bool tx_lock, goober_msg_type_t message_class, uint8_t payload_size, goober_payload_t *payload);
+void peekLatestTelemetryPayload(goober_payload_t *payload);
+
+esp_err_t lora_flight_init();
 
 void lora_transmit_packet(goober_t *packet);
 
-void slave_lora_task(goober_payload_t *telemetry);
-
-void lora_queue_packet(goober_payload_t *payload);
-
-void lora_read_latest_queue_packet(goober_payload_t *payload);
-
-
+int lora_blocking_listen(goober_t *received_packet, uint8_t timeout);
             
 #endif
