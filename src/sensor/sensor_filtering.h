@@ -39,7 +39,7 @@ void sensor_filter_reset(void);  // resets all internal states
 
 // In-place filters (modify the structs you pass in).
 // `flight_state` is used to re-seed states when it changes.
-void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state);
+void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state, bool clamp);
 void sensor_filter_gyr(imu_local_3d_t* local_gyr, uint8_t flight_state);
 void sensor_filter_mag(imu_local_3d_t* local_mag, uint8_t flight_state);
 void sensor_filter_high_g_acc(imu_float_3d_t* high_g_acc, uint8_t flight_state);

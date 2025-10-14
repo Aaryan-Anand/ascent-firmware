@@ -157,7 +157,7 @@ void primary_task(void *pvParameters) {
                 
                 //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
                 
-                sensor_filter_acc(&local_acc, flight_state);
+                sensor_filter_acc(&local_acc, flight_state, true);
                 sensor_filter_gyr(&local_gyr, flight_state);
                 sensor_filter_mag(&local_mag, flight_state);
                 sensor_filter_high_g_acc(&high_g_acc, flight_state);
