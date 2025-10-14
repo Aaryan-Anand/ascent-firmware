@@ -4,7 +4,6 @@
 #include "assert.h"
 #include "math.h"
 #include "stdlib.h"
-#include "fail.h"
 #include "driver_w25qxx.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
