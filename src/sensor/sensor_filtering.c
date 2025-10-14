@@ -155,62 +155,72 @@ void sensor_filter_reset(void) {
     s_hist_hg_z = (biquad_hist_t){0};
 }
 
-void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state) {
+void seed_filter_acc(imu_local_3d_t* local_acc, robust_params_t rp, biquad_params_t bp) {
+    // Seed Hampel (median = current, MAD = eps)
+    s_acc_med_x = local_acc->x;  s_acc_mad_x = rp.epsilon_mad;
+    s_acc_med_y = local_acc->y;  s_acc_mad_y = rp.epsilon_mad;
+    s_acc_med_z = local_acc->z;  s_acc_mad_z = rp.epsilon_mad;
+
+    // Seed biquad histories to current (avoid startup pop); pass-through this frame
+    s_hist_acc_x = (biquad_hist_t){ .x1=local_acc->x, .x2=local_acc->x,
+                                    .y1=local_acc->x, .y2=local_acc->x };
+    s_hist_acc_y = (biquad_hist_t){ .x1=local_acc->y, .x2=local_acc->y,
+                                    .y1=local_acc->y, .y2=local_acc->y };
+    s_hist_acc_z = (biquad_hist_t){ .x1=local_acc->z, .x2=local_acc->z,
+                                    .y1=local_acc->z, .y2=local_acc->z };
+}
+
+void sensor_filter_acc(imu_local_3d_t* local_acc, uint8_t flight_state, bool clamp) {
     if (!local_acc) return;
 
     static uint8_t prev_flight_state = 0;
-    
-    if(prev_flight_state != flight_state) {
-        sensor_filter_reset();
-    }
-    prev_flight_state = flight_state;
+    static bool prev_clamp = false;
+    float x_f, y_f, z_f;
 
     const robust_params_t rp = s_params[SENSOR_PROFILE_LOW_G_ACC];
     const biquad_params_t bp = s_biquad[SENSOR_PROFILE_LOW_G_ACC];
-
+    
     // Re-seed on flight-state change or first run
-    if (!s_acc_initialized || flight_state != s_acc_prev_state) {
-        s_acc_prev_state  = flight_state;
+    if(!s_acc_initialized || prev_flight_state != flight_state || prev_clamp != clamp) {
         s_acc_initialized = true;
-
-        // Seed Hampel (median = current, MAD = eps)
-        s_acc_med_x = local_acc->x;  s_acc_mad_x = rp.epsilon_mad;
-        s_acc_med_y = local_acc->y;  s_acc_mad_y = rp.epsilon_mad;
-        s_acc_med_z = local_acc->z;  s_acc_mad_z = rp.epsilon_mad;
-
-        // Seed biquad histories to current (avoid startup pop); pass-through this frame
-        s_hist_acc_x = (biquad_hist_t){ .x1=local_acc->x, .x2=local_acc->x,
-                                        .y1=local_acc->x, .y2=local_acc->x };
-        s_hist_acc_y = (biquad_hist_t){ .x1=local_acc->y, .x2=local_acc->y,
-                                        .y1=local_acc->y, .y2=local_acc->y };
-        s_hist_acc_z = (biquad_hist_t){ .x1=local_acc->z, .x2=local_acc->z,
-                                        .y1=local_acc->z, .y2=local_acc->z };
+        sensor_filter_reset();
+        seed_filter_acc(local_acc, rp, bp);
         return;
     }
+    prev_flight_state = flight_state;
+    prev_clamp = clamp;
+    s_acc_prev_state  = flight_state;
 
-    /* ---- 1) Hampel-style clamp per axis (in-place) ---- */
-    float med_x_new = hampel_update_median(s_acc_med_x, local_acc->x, rp.beta_h);
-    float mad_x_new = hampel_update_mad(s_acc_mad_x, s_acc_med_x, local_acc->x, rp.beta_h, rp.epsilon_mad);
-    float x_clamped = hampel_clamp(local_acc->x, med_x_new, mad_x_new, rp.k_clamp);
+    if(clamp) {
+        /* ---- 1) Hampel-style clamp per axis (in-place) ---- */
+        float med_x_new = hampel_update_median(s_acc_med_x, local_acc->x, rp.beta_h);
+        float mad_x_new = hampel_update_mad(s_acc_mad_x, s_acc_med_x, local_acc->x, rp.beta_h, rp.epsilon_mad);
+        float x_clamped = hampel_clamp(local_acc->x, med_x_new, mad_x_new, rp.k_clamp);
 
-    float med_y_new = hampel_update_median(s_acc_med_y, local_acc->y, rp.beta_h);
-    float mad_y_new = hampel_update_mad(s_acc_mad_y, s_acc_med_y, local_acc->y, rp.beta_h, rp.epsilon_mad);
-    float y_clamped = hampel_clamp(local_acc->y, med_y_new, mad_y_new, rp.k_clamp);
+        float med_y_new = hampel_update_median(s_acc_med_y, local_acc->y, rp.beta_h);
+        float mad_y_new = hampel_update_mad(s_acc_mad_y, s_acc_med_y, local_acc->y, rp.beta_h, rp.epsilon_mad);
+        float y_clamped = hampel_clamp(local_acc->y, med_y_new, mad_y_new, rp.k_clamp);
 
-    float med_z_new = hampel_update_median(s_acc_med_z, local_acc->z, rp.beta_h);
-    float mad_z_new = hampel_update_mad(s_acc_mad_z, s_acc_med_z, local_acc->z, rp.beta_h, rp.epsilon_mad);
-    float z_clamped = hampel_clamp(local_acc->z, med_z_new, mad_z_new, rp.k_clamp);
+        float med_z_new = hampel_update_median(s_acc_med_z, local_acc->z, rp.beta_h);
+        float mad_z_new = hampel_update_mad(s_acc_mad_z, s_acc_med_z, local_acc->z, rp.beta_h, rp.epsilon_mad);
+        float z_clamped = hampel_clamp(local_acc->z, med_z_new, mad_z_new, rp.k_clamp);
 
-    // commit clamp state
-    s_acc_med_x = med_x_new; s_acc_mad_x = mad_x_new;
-    s_acc_med_y = med_y_new; s_acc_mad_y = mad_y_new;
-    s_acc_med_z = med_z_new; s_acc_mad_z = mad_z_new;
+        // commit clamp state
+        s_acc_med_x = med_x_new; s_acc_mad_x = mad_x_new;
+        s_acc_med_y = med_y_new; s_acc_mad_y = mad_y_new;
+        s_acc_med_z = med_z_new; s_acc_mad_z = mad_z_new;
 
-    /* ---- 2) Biquad (DF1) on clamped values; write back in-place ---- */
-    float x_f = biquad_df1(&bp, &s_hist_acc_x, x_clamped);
-    float y_f = biquad_df1(&bp, &s_hist_acc_y, y_clamped);
-    float z_f = biquad_df1(&bp, &s_hist_acc_z, z_clamped);
-
+        /* ---- 2) Biquad (DF1) on clamped values; write back in-place ---- */
+        x_f = biquad_df1(&bp, &s_hist_acc_x, x_clamped);
+        y_f = biquad_df1(&bp, &s_hist_acc_y, y_clamped);
+        z_f = biquad_df1(&bp, &s_hist_acc_z, z_clamped);
+    }
+    else {
+        /* ---- 2) Biquad (DF1) on clamped values; write back in-place ---- */
+        x_f = biquad_df1(&bp, &s_hist_acc_x, local_acc->x);
+        y_f = biquad_df1(&bp, &s_hist_acc_y, local_acc->y);
+        z_f = biquad_df1(&bp, &s_hist_acc_z, local_acc->z);
+    }
     local_acc->x = x_f;
     local_acc->y = y_f;
     local_acc->z = z_f;
