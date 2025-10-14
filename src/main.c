@@ -47,7 +47,6 @@ static tNeopixelContext neopixel;
 
 #include "sensor_manager.h"
 #include "beep.h"
-#include "fail.h"
 #include "lora_interface.h"
 #include "flash_interface.h"
 #include "flight.h"
