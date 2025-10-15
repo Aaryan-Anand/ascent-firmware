@@ -95,6 +95,10 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
+#ifdef DEBUG
+    printf("STARTING PRIMARY TASK\n");
+#endif
+    
     while (1) {
         uint8_t flight_state = get_flight_state();
 
@@ -361,19 +365,20 @@ void app_main(void) {
 
     fail_if_barometer_bad();
 
+#ifndef DEBUG
     break_beep();
     battery_beep();
     break_beep();
     serial_util_init();
-
+#endif
     printf("========================\n");
     flash_print_stats();
     printf("========================\n");
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
+#ifndef DEBUG
     try_to_dump_data();
-
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
@@ -384,6 +389,8 @@ void app_main(void) {
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
+
+#endif
 #endif
     // xTaskCreatePinnedToCore(meergolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
@@ -628,4 +635,29 @@ void try_to_dump_data() {
             }
         }
     }
+}
+
+
+void print_flash_packet(flash_packet *fp) {
+    printf("fp:\t");
+    printf("n: %"PRId32"\t", fp->n);//datapoint number
+    printf("ts: %"PRId64"\t", fp->timestamp);//timestamp in microseconds
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);//pyro continuity status in 4 conssecutive bits
+    printf("fs: %d\t", fp->flight_state);//flight state number
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);//acceleration in m/s^2
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);//gyro in degrees/s
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);//magnetometer in uT
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);//high g acceleration in m/s^2
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);//barometric altitude in m and pressure in hPa and temperature in C
+    printf("agl: %f.2\t", fp->barometric_agl);//barometric altitude in m
+    printf("vel: %f.2\t", fp->barometric_velocity);//barometric velocity in m/s
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);//average barometric velocity in m/s
+    printf("yaw: %f.2\t", fp->orientation.yaw);//yaw in degrees
+    printf("pitch: %f.2\t", fp->orientation.pitch);//pitch in degrees
+    printf("roll: %f.2\t", fp->orientation.roll);//roll in degrees
+    printf("lat: %f\t", fp->latitude);//latitude in degrees
+    printf("long: %f\t", fp->longitude);//longitude in degrees
+    printf("gps_alt: %lu\t", fp->gps_altitude);//gps altitude in m
+    printf("volt: %f.2\t", fp->bat_voltage);//battery voltage in V
+    printf("\n");
 }
