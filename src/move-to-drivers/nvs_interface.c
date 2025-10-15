@@ -27,10 +27,6 @@ void nvs_interface_init(void)
 
         printf("Failed initalize nvs flash\n");
 
-        for (int i = 0; i < 4; i++) {
-            error_beep();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
         esp_restart();
     }
 
