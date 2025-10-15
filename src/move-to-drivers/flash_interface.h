@@ -5,6 +5,7 @@
 #include "interface_bmp390l.h"
 #include "interface_bno055.h"
 #include "interface_h3lis331dl.h"
+#include "orientation.h"
 
 typedef struct {
     uint32_t n;
@@ -19,6 +20,8 @@ typedef struct {
     float barometric_agl;
     float barometric_velocity;
     float average_barometric_velocity;
+
+    orientation_t orientation;
 
     float latitude;
     float longitude;
