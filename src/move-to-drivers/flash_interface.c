@@ -15,6 +15,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#include "nvs_interface.h"
+
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
@@ -62,30 +64,10 @@ void flash_flight_init(void)
         esp_restart();
     }
 
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // nvs_flash_erase();
-        // nvs_flash_init();
+    // not needed called by init boot sequence
+    // nvs_interface_init();
 
-        // here the nvs flash has been over run for some reason and needs to be
-        // totally erased
-        // so we don't lose bank data this throws an error and
-        // requires a manual recompile to call the above functions after all
-        // data from banks has been saved and the whole external flash chip has
-        // been erased
-
-        printf("Failed initalize nvs flash\n");
-
-        for (int i = 0; i < 4; i++) {
-            error_beep();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
-        esp_restart();
-    }
-
-    if (nvs_open("storage", NVS_READWRITE, &my_handle) != ESP_OK) {
-        printf("Failed open nvs storage\n");
-    }
+    my_handle = nvs_interface_get_handle();
 
     if (nvs_find_key(my_handle, "bank", NULL) != ESP_OK) {
         printf("Can't find 'bank' key nvs flash, rebuilding\n");

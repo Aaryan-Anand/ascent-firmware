@@ -53,6 +53,7 @@ static tNeopixelContext neopixel;
 #include "sensor_fusion.h"
 #include "sensor_filtering.h"
 #include "serial_util.h"
+#include "nvs_interface.h"
 
 #include "sitl.h"
 
@@ -506,6 +507,12 @@ void init_boot_sequence(void) {
 
     spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
     vTaskDelay(pdMS_TO_TICKS(50));
+
+    nvs_interface_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    sensor_manager_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     bmp_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
