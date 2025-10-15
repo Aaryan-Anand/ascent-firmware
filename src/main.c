@@ -22,7 +22,7 @@
 static tNeopixelContext neopixel;
 
 //#define FUSION_DEBUG
-//#define DEBUG
+#define DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -431,7 +431,7 @@ void app_main(void) {
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
 #ifdef DEBUG
-    tx_lock();
+    activate_txlock();
 #endif
 #ifdef ARM_REGARDLESS_OF_TXLOCK
     fake_tx_lock();
