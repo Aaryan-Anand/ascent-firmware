@@ -393,15 +393,19 @@ void app_main(void) {
         printf("Set UUID\n");
         esp_restart();
 #else
-        size_t length = sizeof(uuid);
-        if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
-            printf("Failed to load uuid\n");
-            esp_restart();
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(uuid);
+            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+            for (int i = 0; i < 16; i++) {
+                printf("%X ", uuid[i]);
+            }
+            printf("\n");
+        } else {
+            printf("using fallback uuid\n");
         }
-        for (int i = 0; i < 16; i++) {
-            printf("%X ", uuid[i]);
-        }
-        printf("\n");
 #endif
     }
 
