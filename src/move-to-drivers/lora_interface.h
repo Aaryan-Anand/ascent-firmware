@@ -5,7 +5,6 @@
 #include "stdint.h"
 #include "lora.h"
 #include "goober.h"
-
 #define LORA_FREQ 920e6
 
 #define LORA_DEBUG

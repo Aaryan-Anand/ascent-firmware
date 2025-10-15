@@ -112,12 +112,6 @@ void bmp_flight_init(){
 void bno_flight_init(){
     bno055_init(I2C_MASTER_PORT);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    
-    // Pass calibration matrices and bias vectors to the BNO interface
-    bno055_set_calibration(
-        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
-        acc_bias_vector, gyr_bias_vector, mag_bias_vector
-    );
 
     bno_setoprmode(CONFIG);
     vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -134,6 +128,13 @@ void bno_flight_init(){
     bno_set_acc_hgduration(10);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
+
+    calibrate_gyr_bias_5s();
+    // Pass calibration matrices and bias vectors to the BNO interface
+    bno055_set_calibration(
+        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
+        acc_bias_vector, gyr_bias_vector, mag_bias_vector
+    );
 }
 
 void lis331_flight_init(){
@@ -166,25 +167,6 @@ void lis331_flight_init(){
 
 
 #include "stdbool.h"
-
-static const float alpha = 0.1f;
-static imu_local_3d_t acc;
-static bool initialized = false;
-
-void accl_update(imu_local_3d_t new, imu_local_3d_t* out) {
-    if (!initialized) {
-        acc = new;
-        initialized = true;
-    }
-
-    acc.x = acc.x * alpha + new.x * (1.0f - alpha);
-    acc.y = acc.y * alpha + new.y * (1.0f - alpha);
-    acc.z = acc.z * alpha + new.z * (1.0f - alpha);
-
-    *out = acc;
-}
-
-
 
 #include "globals.h"
 #include "interface_bmp390l.h"
@@ -241,9 +223,9 @@ void baro_update(const baro_double_t * const baro, float *agl, float *vel, float
     *avg_vel = average_barometric_velocity;
 }
 
-void calibrate_gyr_bias_5s(bool use_filtered)
+void calibrate_gyr_bias_5s(void)
 {
-    const int64_t duration_us = 5 * 1000 * 1000;
+    const int64_t duration_us = 10 * 1000 * 1000;
     const TickType_t sample_period = pdMS_TO_TICKS(10);
 
     imu_local_3d_t acc, gyr, mag;
@@ -252,7 +234,7 @@ void calibrate_gyr_bias_5s(bool use_filtered)
 
     const int64_t t0 = esp_timer_get_time();
     while ((esp_timer_get_time() - t0) < duration_us) {
-        bno055_get_local(&acc, &gyr, &mag, use_filtered);
+        bno055_get_local(&acc, &gyr, &mag, false);
 
         sx += (double)gyr.x;
         sy += (double)gyr.y;
@@ -267,11 +249,6 @@ void calibrate_gyr_bias_5s(bool use_filtered)
     gyr_bias_vector[0] = -(float)(sx / (double)n);
     gyr_bias_vector[1] = -(float)(sy / (double)n);
     gyr_bias_vector[2] = -(float)(sz / (double)n);
-
-    bno055_set_calibration(
-        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
-        acc_bias_vector, gyr_bias_vector, mag_bias_vector
-    );
 
     printf("Gyro bias updated (deg/s): bx=%f by=%f bz=%f (N=%u)\n",
            gyr_bias_vector[0], gyr_bias_vector[1], gyr_bias_vector[2], (unsigned)n);
