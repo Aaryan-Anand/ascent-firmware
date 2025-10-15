@@ -228,6 +228,14 @@ void flash_dump_to_serial(int bank) {
         printf("%f,", fp.barometric_velocity);
         printf("%f,", fp.average_barometric_velocity);
 
+        printf("%f,", fp.orientation.roll);
+        printf("%f,", fp.orientation.pitch);
+        printf("%f,", fp.orientation.yaw);
+        printf("%f,", fp.orientation.qw);
+        printf("%f,", fp.orientation.qx);
+        printf("%f,", fp.orientation.qy);
+        printf("%f,", fp.orientation.qz);
+
         printf("%f,", fp.latitude);
         printf("%f,", fp.longitude);
         printf("%lu,", fp.gps_altitude);
