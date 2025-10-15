@@ -18,9 +18,9 @@ float bmp_bias = 0.0f;
 
 // Keep these correction matrices and bias vectors
 float acc_correction_matrix[3][3] = {
-    {1.014827f, -0.00171f, 0.012858f},
-    {-0.00171f, 1.018583f, -0.001022f},
-    {0.012858f, -0.001022f, 1.014826f}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
 float gyr_correction_matrix[3][3] = {
@@ -30,21 +30,21 @@ float gyr_correction_matrix[3][3] = {
 };
 
 float mag_correction_matrix[3][3] = {
-    {0.940808, 0.048346, 0.011292},
-    {0.048346, 1.035143, -0.004551},
-    {0.011292, -0.004551, 1.053248}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
 float high_g_correction_matrix[3][3] = {
-    {1.040775f, -0.007118f, 0.006814f},
-    {-0.007118f, 1.021521f, 0.008064f},
-    {0.006814f, 0.008064f, 0.993659f}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
-float acc_bias_vector[3] = {0.119969f, 0.363178f, -0.241031f};
+float acc_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
-float mag_bias_vector[3] = {979.674588, 499.134952, -895.484539};
-float high_g_bias_vector[3] = {-0.219985f, 0.266331f, 0.154979f};
+float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 
 // Remove redundant rotation and calibration helper functions
 // (They're now in the interfaces)
