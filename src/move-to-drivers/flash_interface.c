@@ -109,6 +109,24 @@ void flash_flight_init(void)
     assert(flash_packet_queue != NULL);
 }
 
+bool flash_erase_next_bank_no_advance(void) {
+    int32_t bank;
+
+    if (nvs_get_i32(my_handle, "bank", &bank) != ESP_OK) {
+        // now we don't know what bank to use please fail
+        printf("Why do we have no bank?\n");
+        return false;
+    }
+
+    int32_t next_bank = (bank + 1) % BANKS;
+
+    if (flash_erase_bank(next_bank) != ESP_OK) {
+        return false;
+    }
+
+    return true;
+}
+
 bool flash_prepare_for_flight(void) {
     printf("DOING CHIP ERASE\n");
 
@@ -122,10 +140,18 @@ bool flash_prepare_for_flight(void) {
         esp_restart();
     }
 
+    // erase next bank
+    if (!flash_erase_next_bank_no_advance()) {
+        printf("Erasing next bank failed\n");
+        for (int i = 0; i < 5; i++) {
+            error_beep();
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        esp_restart();
+    }
+
+    // actually advance the bank
     current_bank = (current_bank + 1) % BANKS;
-
-    flash_erase_bank(current_bank);
-
     addr = current_bank*BANK_SIZE;
 
     nvs_set_i32(my_handle, "bank", current_bank);
