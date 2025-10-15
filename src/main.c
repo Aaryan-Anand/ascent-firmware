@@ -213,7 +213,7 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = gooberCreateTelemetry(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                goober_payload_t telemetry = gooberCreateTelemetry(lat, lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 queueLatestTelemetryPayload(&telemetry);
 
                 flash_packet fp = {
