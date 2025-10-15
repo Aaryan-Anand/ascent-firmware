@@ -82,9 +82,6 @@ void bmp_calib(baro_double_t* baro_out);
  */
 void bmp_local(baro_double_t* baro_out);
 
-void accl_update(imu_local_3d_t acc, imu_local_3d_t* out);
-
-
 void baro_update(const baro_double_t * const baro, float *agl, float *vel, float *avg_vel);
 
 void calibrate_gyr_bias_5s(bool use_filtered);
