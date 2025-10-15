@@ -97,12 +97,16 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
+    // float runtime[10];
+    // float dt[10];
+
 #ifdef DEBUG
     printf("STARTING PRIMARY TASK\n");
 #endif
     
     while (1) {
         uint8_t flight_state = get_flight_state();
+        // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
         // I know that you can do things like an an empty statement but that is weird
@@ -134,6 +138,8 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
                 uint32_t UTCtstamp;
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                // runtime[0] = esp_timer_get_time() - start_time;
+                // dt[0] = runtime[0];
             }
 
             // read all sensors and send data to secondary task
@@ -160,14 +166,14 @@ void primary_task(void *pvParameters) {
 #else
                 bmp390_get_local(&baro);
 #endif
-                
-                //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
-                
+                // runtime[1] = esp_timer_get_time() - start_time;
+                // dt[1] = runtime[1];
                 sensor_filter_acc(&local_acc, flight_state, true);
                 sensor_filter_gyr(&local_gyr, flight_state);
                 sensor_filter_mag(&local_mag, flight_state);
                 sensor_filter_high_g_acc(&high_g_acc, flight_state);
-                
+                // runtime[2] = esp_timer_get_time() - start_time;
+                // dt[2] = runtime[2]-runtime[1];
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
@@ -176,17 +182,16 @@ void primary_task(void *pvParameters) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
                 }
-
+                // runtime[3] = esp_timer_get_time() - start_time;
+                // dt[3] = runtime[3]-runtime[2];
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
                 baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
-
-                imu_local_3d_t acc;
-                accl_update(local_acc, &acc);
-
+                // runtime[4] = esp_timer_get_time() - start_time;
+                // dt[4] = runtime[4]-runtime[3];
                 // float phi = 0;
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, local_acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
@@ -202,7 +207,8 @@ void primary_task(void *pvParameters) {
                         turn_off_fan();
                     }
                 }
-
+                // runtime[5] = esp_timer_get_time() - start_time;
+                // dt[5] = runtime[5]-runtime[4];
                 // always queue up latest telemetry for secondary task
                 float yaw = 0, pitch = 0, roll = 0;
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
@@ -211,7 +217,9 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                // runtime[6] = esp_timer_get_time() - start_time;
+                // dt[6] = runtime[6]-runtime[5];
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
                 flash_packet fp = {
@@ -233,6 +241,7 @@ void primary_task(void *pvParameters) {
                     .gps_altitude = gps_altitude,
                     .bat_voltage = psu_read_battery_voltage(),
                 };
+
                 #ifdef DEBUG
                 print_flash_packet(&fp);
                 #else
@@ -241,6 +250,9 @@ void primary_task(void *pvParameters) {
                     flash_queue_packet(&fp);
                 }
                 #endif
+                // runtime[7] = esp_timer_get_time() - start_time;
+                // dt[7] = runtime[7]-runtime[6];
+                // printf("dt: %f.2, %f.2, %f.2, %f.2, %f.2, %f.2, %f.2, %f.2 \n", dt[0], dt[1], dt[2], dt[3], dt[4], dt[5], dt[6], dt[7]);
             }
         } else {
             // this is the FS_LANDED case
@@ -414,6 +426,9 @@ void app_main(void) {
     orientation_init_from_gravity(&g_orientation, false);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
+#ifdef DEBUG
+    tx_lock();
+#endif
 #ifdef ARM_REGARDLESS_OF_TXLOCK
     fake_tx_lock();
 #endif

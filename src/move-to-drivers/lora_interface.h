@@ -7,7 +7,7 @@
 
 #define LORA_FREQ 928e6
 
-#define LORA_DEBUG
+//#define LORA_DEBUG
 
 // ONE BYTE MESSAGE PAYLOADS
  
@@ -98,6 +98,8 @@ goober_payload_t create_telemetry_payload(int32_t latitude, int32_t longitude, f
 void lora_transmit_packet(goober_t *packet);
 
 void slave_lora_task(goober_payload_t *telemetry);
+
+void tx_lock(void);
 
 void lora_queue_packet(goober_payload_t *payload);
 
