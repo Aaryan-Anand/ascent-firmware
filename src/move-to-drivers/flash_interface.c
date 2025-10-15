@@ -225,7 +225,7 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     packet->n = n++;
-    while (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+    if (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
         // vTaskDelay(pdMS_TO_TICKS(1)); 
         printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
     }
