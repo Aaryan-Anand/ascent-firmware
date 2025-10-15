@@ -191,10 +191,10 @@ void sensor_manager_init() {
         esp_restart();
     }
 
-    print_mat_3x3(acc_correction_matrix);
-    print_mat_3x3(gyr_correction_matrix);
-    print_mat_3x3(mag_correction_matrix);
-    print_mat_3x3(high_g_correction_matrix);
+    print_mat_3x3((float*) acc_correction_matrix);
+    print_mat_3x3((float*) gyr_correction_matrix);
+    print_mat_3x3((float*) mag_correction_matrix);
+    print_mat_3x3((float*) high_g_correction_matrix);
     print_vec_3(acc_bias_vector);
     print_vec_3(gyr_bias_vector);
     print_vec_3(mag_bias_vector);

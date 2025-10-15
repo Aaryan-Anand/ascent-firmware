@@ -378,6 +378,34 @@ void app_main(void) {
     globals_init();
     init_boot_sequence();
 
+    // will be populated or used to set in flash
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+#if 0
+        if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
+            printf("Failed to set uuid\n");
+            printf("%d\n", err);
+            esp_restart();
+        }
+        printf("Set UUID\n");
+        esp_restart();
+#else
+        size_t length = sizeof(uuid);
+        if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+            printf("Failed to load uuid\n");
+            esp_restart();
+        }
+        for (int i = 0; i < 16; i++) {
+            printf("%X ", uuid[i]);
+        }
+        printf("\n");
+#endif
+    }
+
+
     // Set origin vectors during boot sequence
 #ifndef FUSION_DEBUG
 
