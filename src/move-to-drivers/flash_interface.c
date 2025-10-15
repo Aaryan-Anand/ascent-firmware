@@ -43,7 +43,7 @@ static const char* bank_keys[BANKS] = {
 QueueHandle_t flash_packet_queue;
 
 void flash_erase_jingle(void);
-static esp_err_t flash_erase_bank(int bank);
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume);
 
 uint32_t flash_get_addr() {
     return addr;
@@ -109,7 +109,7 @@ void flash_flight_init(void)
     assert(flash_packet_queue != NULL);
 }
 
-bool flash_erase_next_bank_no_advance(void) {
+bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume) {
     int32_t bank;
 
     if (nvs_get_i32(my_handle, "bank", &bank) != ESP_OK) {
@@ -120,7 +120,7 @@ bool flash_erase_next_bank_no_advance(void) {
 
     int32_t next_bank = (bank + 1) % BANKS;
 
-    if (flash_erase_bank(next_bank) != ESP_OK) {
+    if (flash_erase_bank(next_bank, max_time, resume) != ESP_OK) {
         return false;
     }
 
@@ -141,7 +141,8 @@ bool flash_prepare_for_flight(void) {
     }
 
     // erase next bank
-    if (!flash_erase_next_bank_no_advance()) {
+    int32_t resume = -1;
+    if (!flash_erase_next_bank_no_advance(0, &resume)) {
         printf("Erasing next bank failed\n");
         for (int i = 0; i < 5; i++) {
             error_beep();
@@ -160,22 +161,43 @@ bool flash_prepare_for_flight(void) {
     return true;
 }
 
-static esp_err_t flash_erase_bank(int bank) {
+// max_time == 0 means that the bank must be fully erased and that the function will block to ensure that
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
+    int64_t start = esp_timer_get_time();
+
     printf("Erasing bank: %d\n", bank);
     int32_t used_bytes;
     nvs_get_i32(my_handle, bank_keys[bank], &used_bytes);
     int32_t used = (used_bytes + SECTOR_SIZE - 1)/SECTOR_SIZE;
 
-    uint32_t base = bank*SECTORS_IN_BANK;
-    for (uint32_t i = 0; i < used; i++) {
-        w25qxx_sector_erase((base+i)*SECTOR_SIZE);
-        printf("%f\n", (float) i / (float) used);
+    static uint32_t i;
+    if (max_time == 0) i = 0;
+    else {
+        if (*resume == -1) i = 0;
+        else i = *resume;
     }
 
-    nvs_set_i32(my_handle, bank_keys[bank], 0);
+    uint32_t base = bank*SECTORS_IN_BANK;
 
-    return ESP_OK;
+    bool should_stop = ((esp_timer_get_time() - start) >= max_time);
+    if (max_time == 0) should_stop = false;
+    while (!should_stop && i < used) {
+        w25qxx_sector_erase((base+i)*SECTOR_SIZE);
+        printf("%f\n", (float) i / (float) used);
+
+        i++;
+    }
+
+    if(i >= used) {
+        nvs_set_i32(my_handle, bank_keys[bank], 0);
+        *resume = -1;
+        return ESP_OK;
+    } else {
+        *resume = i;
+        return ESP_ERR_NOT_FINISHED;
+    }
 }
+
 
 void flash_dump_to_serial(int bank) {
     flash_packet fp;
