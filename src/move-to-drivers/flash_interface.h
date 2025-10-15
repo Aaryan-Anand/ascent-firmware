@@ -34,6 +34,8 @@ uint32_t flash_get_addr();
 
 void flash_flight_init(void);
 
+bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume);
+
 bool flash_prepare_for_flight(void);
 
 void flash_dump_to_serial(int bank);

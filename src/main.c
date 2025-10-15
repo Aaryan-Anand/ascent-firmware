@@ -97,8 +97,12 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
+    int32_t resume = -1;
+    bool flash_erase_next_bank_on_landed_finished = false;
+
     while (1) {
         uint8_t flight_state = get_flight_state();
+        flight_state = FS_LANDED;
         // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
@@ -256,6 +260,10 @@ void primary_task(void *pvParameters) {
 
                 goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
                 lora_queue_packet(&telemetry);
+
+                if (!flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, &resume)) {
+                    flash_erase_next_bank_on_landed_finished = true;
+                }
             }
         }
 
