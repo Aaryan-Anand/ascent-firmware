@@ -22,6 +22,7 @@
 static tNeopixelContext neopixel;
 
 //#define FUSION_DEBUG
+//#define DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -79,6 +80,7 @@ void fake_tx_lock(void);
 uint8_t calc_pyro_arm(void);
 
 void try_to_dump_data();
+void print_flash_packet(flash_packet *fp);
 
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
@@ -95,12 +97,9 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
-#ifdef DEBUG
-    printf("STARTING PRIMARY TASK\n");
-#endif
-    
     while (1) {
         uint8_t flight_state = get_flight_state();
+        // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
         // I know that you can do things like an an empty statement but that is weird
@@ -132,6 +131,8 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
                 uint32_t UTCtstamp;
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                // runtime[0] = esp_timer_get_time() - start_time;
+                // dt[0] = runtime[0];
             }
 
             // read all sensors and send data to secondary task
@@ -165,7 +166,8 @@ void primary_task(void *pvParameters) {
                 sensor_filter_gyr(&local_gyr, flight_state);
                 sensor_filter_mag(&local_mag, flight_state);
                 sensor_filter_high_g_acc(&high_g_acc, flight_state);
-                
+                // runtime[2] = esp_timer_get_time() - start_time;
+                // dt[2] = runtime[2]-runtime[1];
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
@@ -174,17 +176,16 @@ void primary_task(void *pvParameters) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
                 }
-
+                // runtime[3] = esp_timer_get_time() - start_time;
+                // dt[3] = runtime[3]-runtime[2];
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
                 baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
-
-                imu_local_3d_t acc;
-                accl_update(local_acc, &acc);
-
+                // runtime[4] = esp_timer_get_time() - start_time;
+                // dt[4] = runtime[4]-runtime[3];
                 // float phi = 0;
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, local_acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
@@ -200,7 +201,8 @@ void primary_task(void *pvParameters) {
                         turn_off_fan();
                     }
                 }
-
+                // runtime[5] = esp_timer_get_time() - start_time;
+                // dt[5] = runtime[5]-runtime[4];
                 // always queue up latest telemetry for secondary task
                 float yaw = 0, pitch = 0, roll = 0;
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
@@ -209,31 +211,38 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                // runtime[6] = esp_timer_get_time() - start_time;
+                // dt[6] = runtime[6]-runtime[5];
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
+                flash_packet fp = {
+                    .n = 0,
+                    .timestamp = esp_timer_get_time(),
+                    .pyro_arm = calc_pyro_arm(),
+                    .flight_state = flight_state,
+                    .acc = local_acc,
+                    .gyr = local_gyr,
+                    .mag = local_mag,
+                    .high_g_acc = high_g_acc,
+                    .baro = baro,
+                    .barometric_agl = barometric_agl,
+                    .barometric_velocity = barometric_velocity,
+                    .average_barometric_velocity = average_barometric_velocity,
+                    .orientation = g_orientation,
+                    .latitude = lat,
+                    .longitude = lon,
+                    .gps_altitude = gps_altitude,
+                    .bat_voltage = psu_read_battery_voltage(),
+                };
+                #ifdef DEBUG
+                print_flash_packet(&fp);
+                #else
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {
-                        .n = 0,
-                        .timestamp = esp_timer_get_time(),
-                        .pyro_arm = calc_pyro_arm(),
-                        .flight_state = flight_state,
-                        .acc = local_acc,
-                        .gyr = local_gyr,
-                        .mag = local_mag,
-                        .high_g_acc = high_g_acc,
-                        .baro = baro,
-                        .barometric_agl = barometric_agl,
-                        .barometric_velocity = barometric_velocity,
-                        .average_barometric_velocity = average_barometric_velocity,
-                        .latitude = lat,
-                        .longitude = lon,
-                        .gps_altitude = gps_altitude,
-                        .bat_voltage = psu_read_battery_voltage(),
-                    };
                     flash_queue_packet(&fp);
                 }
+                #endif
             }
         } else {
             // this is the FS_LANDED case
@@ -407,6 +416,9 @@ void app_main(void) {
     orientation_init_from_gravity(&g_orientation, false);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
+#ifdef DEBUG
+    tx_lock();
+#endif
 #ifdef ARM_REGARDLESS_OF_TXLOCK
     fake_tx_lock();
 #endif
@@ -492,7 +504,6 @@ void init_boot_sequence(void) {
 
     bno_flight_init();
     vTaskDelay(pdMS_TO_TICKS(100));
-    calibrate_gyr_bias_5s(true);
 
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -640,24 +651,24 @@ void try_to_dump_data() {
 
 void print_flash_packet(flash_packet *fp) {
     printf("fp:\t");
-    printf("n: %"PRId32"\t", fp->n);//datapoint number
-    printf("ts: %"PRId64"\t", fp->timestamp);//timestamp in microseconds
-    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);//pyro continuity status in 4 conssecutive bits
-    printf("fs: %d\t", fp->flight_state);//flight state number
-    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);//acceleration in m/s^2
-    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);//gyro in degrees/s
-    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);//magnetometer in uT
-    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);//high g acceleration in m/s^2
-    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);//barometric altitude in m and pressure in hPa and temperature in C
-    printf("agl: %f.2\t", fp->barometric_agl);//barometric altitude in m
-    printf("vel: %f.2\t", fp->barometric_velocity);//barometric velocity in m/s
-    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);//average barometric velocity in m/s
-    printf("yaw: %f.2\t", fp->orientation.yaw);//yaw in degrees
-    printf("pitch: %f.2\t", fp->orientation.pitch);//pitch in degrees
-    printf("roll: %f.2\t", fp->orientation.roll);//roll in degrees
-    printf("lat: %f\t", fp->latitude);//latitude in degrees
-    printf("long: %f\t", fp->longitude);//longitude in degrees
-    printf("gps_alt: %lu\t", fp->gps_altitude);//gps altitude in m
-    printf("volt: %f.2\t", fp->bat_voltage);//battery voltage in V
+    printf("n: %"PRId32"\t", fp->n);
+    printf("ts: %"PRId64"\t", fp->timestamp);
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
+    printf("fs: %d\t", fp->flight_state);
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
+    printf("agl: %f.2\t", fp->barometric_agl);
+    printf("vel: %f.2\t", fp->barometric_velocity);
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
+    printf("yaw: %f.2\t", fp->orientation.yaw);
+    printf("pitch: %f.2\t", fp->orientation.pitch);
+    printf("roll: %f.2\t", fp->orientation.roll);
+    printf("lat: %f\t", fp->latitude);
+    printf("long: %f\t", fp->longitude);
+    printf("gps_alt: %lu\t", fp->gps_altitude);
+    printf("volt: %f.2\t", fp->bat_voltage);
     printf("\n");
 }
