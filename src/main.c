@@ -22,6 +22,7 @@
 static tNeopixelContext neopixel;
 
 //#define FUSION_DEBUG
+#define DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -79,6 +80,7 @@ void fake_tx_lock(void);
 uint8_t calc_pyro_arm(void);
 
 void try_to_dump_data();
+void print_flash_packet(flash_packet *fp);
 
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
@@ -208,28 +210,33 @@ void primary_task(void *pvParameters) {
                 goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
+                flash_packet fp = {
+                    .n = 0,
+                    .timestamp = esp_timer_get_time(),
+                    .pyro_arm = calc_pyro_arm(),
+                    .flight_state = flight_state,
+                    .acc = local_acc,
+                    .gyr = local_gyr,
+                    .mag = local_mag,
+                    .high_g_acc = high_g_acc,
+                    .baro = baro,
+                    .barometric_agl = barometric_agl,
+                    .barometric_velocity = barometric_velocity,
+                    .average_barometric_velocity = average_barometric_velocity,
+                    .orientation = g_orientation,
+                    .latitude = lat,
+                    .longitude = lon,
+                    .gps_altitude = gps_altitude,
+                    .bat_voltage = psu_read_battery_voltage(),
+                };
+                #ifdef DEBUG
+                print_flash_packet(&fp);
+                #else
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {
-                        .n = 0,
-                        .timestamp = esp_timer_get_time(),
-                        .pyro_arm = calc_pyro_arm(),
-                        .flight_state = flight_state,
-                        .acc = local_acc,
-                        .gyr = local_gyr,
-                        .mag = local_mag,
-                        .high_g_acc = high_g_acc,
-                        .baro = baro,
-                        .barometric_agl = barometric_agl,
-                        .barometric_velocity = barometric_velocity,
-                        .average_barometric_velocity = average_barometric_velocity,
-                        .latitude = lat,
-                        .longitude = lon,
-                        .gps_altitude = gps_altitude,
-                        .bat_voltage = psu_read_battery_voltage(),
-                    };
                     flash_queue_packet(&fp);
                 }
+                #endif
             }
         } else {
             // this is the FS_LANDED case
@@ -485,7 +492,6 @@ void init_boot_sequence(void) {
 
     bno_flight_init();
     vTaskDelay(pdMS_TO_TICKS(100));
-    calibrate_gyr_bias_5s(true);
 
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -628,4 +634,29 @@ void try_to_dump_data() {
             }
         }
     }
+}
+
+
+void print_flash_packet(flash_packet *fp) {
+    printf("fp:\t");
+    printf("n: %"PRId32"\t", fp->n);
+    printf("ts: %"PRId64"\t", fp->timestamp);
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
+    printf("fs: %d\t", fp->flight_state);
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
+    printf("agl: %f.2\t", fp->barometric_agl);
+    printf("vel: %f.2\t", fp->barometric_velocity);
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
+    printf("yaw: %f.2\t", fp->orientation.yaw);
+    printf("pitch: %f.2\t", fp->orientation.pitch);
+    printf("roll: %f.2\t", fp->orientation.roll);
+    printf("lat: %f\t", fp->latitude);
+    printf("long: %f\t", fp->longitude);
+    printf("gps_alt: %lu\t", fp->gps_altitude);
+    printf("volt: %f.2\t", fp->bat_voltage);
+    printf("\n");
 }
