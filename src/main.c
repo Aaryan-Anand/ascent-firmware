@@ -591,7 +591,9 @@ void fail_if_barometer_bad() {
     for (int i = 0; i < n; i++) {
         baro_double_t baro_out;
         bmp390_get_local(&baro_out);
-        printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #ifdef BARO_TEST
+            printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #endif
         if (baro_out.pressure <= 0) {
             while (true) {
                 error_beep();
