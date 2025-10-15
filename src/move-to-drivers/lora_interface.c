@@ -86,6 +86,11 @@ void fake_tx_lock(void) {
 	printf("Faked tx lock ready to fly.\n");
 }
 
+void tx_lock(void) {
+	TXLOCK = true;
+	atomic_store(&thread_safe_txlock, true);
+}
+
 void lora_flight_init()
 {
  	lora_init();
