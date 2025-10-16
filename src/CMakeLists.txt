@@ -8,6 +8,7 @@ idf_component_register(
         "sensor/sensor_filtering.c"
         "move-to-drivers/lora_interface.c"
         "move-to-drivers/flash_interface.c"
+        "move-to-drivers/nvs_interface.c"
         "fsm/flight.c"
         "sensor/sensor_fusion.c"
         "sitl/serial_util.c"
