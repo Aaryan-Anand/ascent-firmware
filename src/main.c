@@ -22,6 +22,7 @@
 static tNeopixelContext neopixel;
 
 //#define FUSION_DEBUG
+//#define DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
@@ -52,6 +53,7 @@ static tNeopixelContext neopixel;
 #include "sensor_fusion.h"
 #include "sensor_filtering.h"
 #include "serial_util.h"
+#include "nvs_interface.h"
 
 #include "sitl.h"
 
@@ -79,6 +81,7 @@ void fake_tx_lock(void);
 uint8_t calc_pyro_arm(void);
 
 void try_to_dump_data();
+void print_flash_packet(flash_packet *fp);
 
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
@@ -95,8 +98,12 @@ void primary_task(void *pvParameters) {
     uint8_t fixType;
     uint8_t numSV;  
 
+    int32_t resume = -1;
+    bool flash_erase_next_bank_on_landed_finished = false;
+
     while (1) {
         uint8_t flight_state = get_flight_state();
+        // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
         // I know that you can do things like an an empty statement but that is weird
@@ -128,6 +135,8 @@ void primary_task(void *pvParameters) {
             if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
                 uint32_t UTCtstamp;
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                // runtime[0] = esp_timer_get_time() - start_time;
+                // dt[0] = runtime[0];
             }
 
             // read all sensors and send data to secondary task
@@ -161,7 +170,8 @@ void primary_task(void *pvParameters) {
                 sensor_filter_gyr(&local_gyr, flight_state);
                 sensor_filter_mag(&local_mag, flight_state);
                 sensor_filter_high_g_acc(&high_g_acc, flight_state);
-                
+                // runtime[2] = esp_timer_get_time() - start_time;
+                // dt[2] = runtime[2]-runtime[1];
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
@@ -170,17 +180,16 @@ void primary_task(void *pvParameters) {
                     orientation_update_from_euler_rates(&g_orientation, &local_gyr);
                     orientation_sync_euler_from_quat(&g_orientation);
                 }
-
+                // runtime[3] = esp_timer_get_time() - start_time;
+                // dt[3] = runtime[3]-runtime[2];
                 float barometric_agl;
                 float barometric_velocity;
                 float average_barometric_velocity;
                 baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
-
-                imu_local_3d_t acc;
-                accl_update(local_acc, &acc);
-
+                // runtime[4] = esp_timer_get_time() - start_time;
+                // dt[4] = runtime[4]-runtime[3];
                 // float phi = 0;
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, acc.x)) {
+                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, local_acc.x)) {
                     // if the flight state changes we may need to update the loop rates
                     // the loop rates will only change if we go into landed
                     update_loop_rate();
@@ -196,7 +205,8 @@ void primary_task(void *pvParameters) {
                         turn_off_fan();
                     }
                 }
-
+                // runtime[5] = esp_timer_get_time() - start_time;
+                // dt[5] = runtime[5]-runtime[4];
                 // always queue up latest telemetry for secondary task
                 float yaw = 0, pitch = 0, roll = 0;
                 if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
@@ -205,31 +215,38 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                // runtime[6] = esp_timer_get_time() - start_time;
+                // dt[6] = runtime[6]-runtime[5];
+                goober_payload_t telemetry = create_telemetry_payload(lat, lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
                 lora_queue_packet(&telemetry);
 
+                flash_packet fp = {
+                    .n = 0,
+                    .timestamp = esp_timer_get_time(),
+                    .pyro_arm = calc_pyro_arm(),
+                    .flight_state = flight_state,
+                    .acc = local_acc,
+                    .gyr = local_gyr,
+                    .mag = local_mag,
+                    .high_g_acc = high_g_acc,
+                    .baro = baro,
+                    .barometric_agl = barometric_agl,
+                    .barometric_velocity = barometric_velocity,
+                    .average_barometric_velocity = average_barometric_velocity,
+                    .orientation = g_orientation,
+                    .latitude = lat,
+                    .longitude = lon,
+                    .gps_altitude = gps_altitude,
+                    .bat_voltage = psu_read_battery_voltage(),
+                };
+                #ifdef DEBUG
+                print_flash_packet(&fp);
+                #else
                 // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
                 if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_packet fp = {
-                        .n = 0,
-                        .timestamp = esp_timer_get_time(),
-                        .pyro_arm = calc_pyro_arm(),
-                        .flight_state = flight_state,
-                        .acc = local_acc,
-                        .gyr = local_gyr,
-                        .mag = local_mag,
-                        .high_g_acc = high_g_acc,
-                        .baro = baro,
-                        .barometric_agl = barometric_agl,
-                        .barometric_velocity = barometric_velocity,
-                        .average_barometric_velocity = average_barometric_velocity,
-                        .latitude = lat,
-                        .longitude = lon,
-                        .gps_altitude = gps_altitude,
-                        .bat_voltage = psu_read_battery_voltage(),
-                    };
                     flash_queue_packet(&fp);
                 }
+                #endif
             }
         } else {
             // this is the FS_LANDED case
@@ -243,6 +260,10 @@ void primary_task(void *pvParameters) {
 
                 goober_payload_t telemetry = create_telemetry_payload(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
                 lora_queue_packet(&telemetry);
+
+                if (!flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, &resume)) {
+                    flash_erase_next_bank_on_landed_finished = true;
+                }
             }
         }
 
@@ -356,24 +377,57 @@ void app_main(void) {
     globals_init();
     init_boot_sequence();
 
+    // will be populated or used to set in flash
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+#if 0
+        if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
+            printf("Failed to set uuid\n");
+            printf("%d\n", err);
+            esp_restart();
+        }
+        printf("Set UUID\n");
+        esp_restart();
+#else
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(uuid);
+            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+            for (int i = 0; i < 16; i++) {
+                printf("%X ", uuid[i]);
+            }
+            printf("\n");
+        } else {
+            printf("using fallback uuid\n");
+        }
+#endif
+    }
+
+
     // Set origin vectors during boot sequence
 #ifndef FUSION_DEBUG
 
     fail_if_barometer_bad();
 
+#ifndef DEBUG
     break_beep();
     battery_beep();
     break_beep();
     serial_util_init();
-
+#endif
     printf("========================\n");
     flash_print_stats();
     printf("========================\n");
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
+#ifndef DEBUG
     try_to_dump_data();
-
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
@@ -384,6 +438,8 @@ void app_main(void) {
     vTaskDelay(1000/portTICK_PERIOD_MS);
 
     beep_pyro_cont();
+
+#endif
 #endif
     // xTaskCreatePinnedToCore(meergolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
 
@@ -400,6 +456,9 @@ void app_main(void) {
     orientation_init_from_gravity(&g_orientation, false);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
+#ifdef DEBUG
+    tx_lock();
+#endif
 #ifdef ARM_REGARDLESS_OF_TXLOCK
     fake_tx_lock();
 #endif
@@ -480,12 +539,17 @@ void init_boot_sequence(void) {
     spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
     vTaskDelay(pdMS_TO_TICKS(50));
 
+    nvs_interface_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    sensor_manager_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
     bmp_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
     bno_flight_init();
     vTaskDelay(pdMS_TO_TICKS(100));
-    calibrate_gyr_bias_5s(true);
 
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -526,7 +590,9 @@ void fail_if_barometer_bad() {
     for (int i = 0; i < n; i++) {
         baro_double_t baro_out;
         bmp390_get_local(&baro_out);
-        printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #ifdef BARO_TEST
+            printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #endif
         if (baro_out.pressure <= 0) {
             while (true) {
                 error_beep();
@@ -628,4 +694,29 @@ void try_to_dump_data() {
             }
         }
     }
+}
+
+
+void print_flash_packet(flash_packet *fp) {
+    printf("fp:\t");
+    printf("n: %"PRId32"\t", fp->n);
+    printf("ts: %"PRId64"\t", fp->timestamp);
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
+    printf("fs: %d\t", fp->flight_state);
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
+    printf("agl: %f.2\t", fp->barometric_agl);
+    printf("vel: %f.2\t", fp->barometric_velocity);
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
+    printf("yaw: %f.2\t", fp->orientation.yaw);
+    printf("pitch: %f.2\t", fp->orientation.pitch);
+    printf("roll: %f.2\t", fp->orientation.roll);
+    printf("lat: %f\t", fp->latitude);
+    printf("long: %f\t", fp->longitude);
+    printf("gps_alt: %lu\t", fp->gps_altitude);
+    printf("volt: %f.2\t", fp->bat_voltage);
+    printf("\n");
 }

@@ -5,6 +5,7 @@
 #include "interface_bmp390l.h"
 #include "interface_bno055.h"
 #include "interface_h3lis331dl.h"
+#include "orientation.h"
 
 typedef struct {
     uint32_t n;
@@ -20,6 +21,8 @@ typedef struct {
     float barometric_velocity;
     float average_barometric_velocity;
 
+    orientation_t orientation;
+
     float latitude;
     float longitude;
     uint32_t gps_altitude;
@@ -30,6 +33,8 @@ typedef struct {
 uint32_t flash_get_addr();
 
 void flash_flight_init(void);
+
+bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume);
 
 bool flash_prepare_for_flight(void);
 

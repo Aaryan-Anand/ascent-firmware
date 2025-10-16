@@ -33,48 +33,12 @@ static bool deploy(pyro_channel_t channel)
 // VS code may say that this is an error bc it can't see APPO_GS but it will compile
 #define APPO_COND (average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
 
-bool flight_update_boost(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-);
-bool flight_update_sust(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-);
-
 bool flight_update(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
     float xacc
 ) {
-#ifdef IS_BOOSTER
-    return flight_update_boost(
-        barometric_agl,
-        barometric_velocity,
-        average_barometric_velocity,
-        xacc
-    );
-#else
-    return flight_update_sust(
-        barometric_agl,
-        barometric_velocity,
-        average_barometric_velocity,
-        xacc
-    );
-#endif
-}
-
-bool flight_update_sust(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-) {
     // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
 
     static int count1 = 0;
@@ -111,150 +75,6 @@ bool flight_update_sust(
             }
 
             if (count1 >= 5) {
-                flight_state = FS_COAST_BOOSTER;
-            }
-            break;
-
-        case FS_COAST_BOOSTER:
-            if (xacc > ENGINE_GS) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (APPO_COND) {
-                count2++;
-            } else {
-                count2 = 0;
-            }
-
-            if (count2 >= 5) {
-                deploy(APPO);
-                flight_state = FS_UNDER_DROGUES;
-            } else if (count1 >= 5) {
-                flight_state = FS_SUSTAINER;
-            }
-            break;
-
-        case FS_SUSTAINER:
-            if (xacc < 0) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
-                flight_state = FS_COAST_SUSTAINER;
-            }
-            break;
-
-        case FS_COAST_SUSTAINER:
-            if (APPO_COND) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
-                deploy(APPO);
-                flight_state = FS_UNDER_DROGUES;
-            }
-            break;
-
-        case FS_UNDER_DROGUES:
-            if (average_barometric_velocity < PANIC_VEL) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (barometric_agl < MAINS_ALT) {
-                count2++;
-            } else {
-                count2 = 0;
-            }
-
-            if (count1 >= 50 || count2 >= 5) {
-                deploy(MAINS);
-                flight_state = FS_UNDER_MAINS;
-            }
-            break;
-
-        case FS_UNDER_MAINS:
-            if (barometric_agl < 50 && fabs(average_barometric_velocity) < 2) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            // for 6 seconds
-            if (count1 >= 300) {
-                flight_state = FS_LANDED;
-            }
-            break;
-
-        case FS_LANDED:
-            break;
-
-        default: break;
-    }
-
-    // reset the counters if we changed flight states
-    // the next state needs to have the counters at zero
-    if (flight_state != pre) {
-        count1 = 0;
-        count2 = 0;
-
-        printf("Changing flight state, now: %s\n", get_flight_state_name());
-    }
-
-    return flight_state != pre;
-}
-
-bool flight_update_boost(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-) {
-    // this function will be called at 50 Hz durring flight, thus every tick is 20 ms
-
-    static int count1 = 0;
-    static int count2 = 0;
-
-    uint8_t pre = flight_state;
-
-    switch (flight_state) {
-        case FS_PREFLIGHT:
-            if (should_wake_up()) {
-                flight_state = FS_ON_PAD;
-            }
-            break;
-
-        case FS_ON_PAD:
-            if (xacc > ENGINE_GS) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
-                flight_state = FS_BOOSTER;
-            } else if (!should_wake_up() && count1 == 0) {
-                flight_state = FS_PREFLIGHT;
-            }
-            break;
-
-        case FS_BOOSTER:
-            if (xacc < 0) {
-                count1++;
-            } else {
-                count1 = 0;
-            }
-
-            if (count1 >= 5) {
-                deploy(PYRO_CHANNEL_3);
-                printf("Deploy sep charge\n");
                 flight_state = FS_COAST_BOOSTER;
             }
             break;
@@ -356,6 +176,7 @@ bool flight_update_boost(
     }
 
     return flight_state != pre;
+
 }
 
 uint8_t get_flight_state(void) {

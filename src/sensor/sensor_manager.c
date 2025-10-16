@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "freertos/semphr.h"
 #include "esp_timer.h"
+#include "nvs_interface.h"
 
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;
@@ -17,9 +18,9 @@ float bmp_bias = 0.0f;
 
 // Keep these correction matrices and bias vectors
 float acc_correction_matrix[3][3] = {
-    {1.014827f, -0.00171f, 0.012858f},
-    {-0.00171f, 1.018583f, -0.001022f},
-    {0.012858f, -0.001022f, 1.014826f}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
 float gyr_correction_matrix[3][3] = {
@@ -29,21 +30,21 @@ float gyr_correction_matrix[3][3] = {
 };
 
 float mag_correction_matrix[3][3] = {
-    {0.940808, 0.048346, 0.011292},
-    {0.048346, 1.035143, -0.004551},
-    {0.011292, -0.004551, 1.053248}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
 float high_g_correction_matrix[3][3] = {
-    {1.040775f, -0.007118f, 0.006814f},
-    {-0.007118f, 1.021521f, 0.008064f},
-    {0.006814f, 0.008064f, 0.993659f}
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
 };
 
-float acc_bias_vector[3] = {0.119969f, 0.363178f, -0.241031f};
+float acc_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
-float mag_bias_vector[3] = {979.674588, 499.134952, -895.484539};
-float high_g_bias_vector[3] = {-0.219985f, 0.266331f, 0.154979f};
+float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
+float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 
 // Remove redundant rotation and calibration helper functions
 // (They're now in the interfaces)
@@ -67,6 +68,172 @@ void i2c_init(){
     bno055_interface_init();
     h3lis331dl_interface_init();
     bmp390_interface_init();
+}
+
+static void print_mat_3x3(float* mat)
+{
+    printf("[%f, %f, %f]\n", mat[0], mat[1], mat[2]);
+    printf("[%f, %f, %f]\n", mat[3], mat[4], mat[5]);
+    printf("[%f, %f, %f]\n\n", mat[6], mat[7], mat[8]);
+}
+
+static void print_vec_3(float* vec)
+{
+    printf("[%f, %f, %f]\n\n", vec[0], vec[1], vec[2]);
+}
+
+static nvs_handle_t my_handle;
+void sensor_manager_init() {
+    my_handle = nvs_interface_get_handle();
+
+    // if this 0 is changed to a 1 the matrices in the code above will be loaded
+    // to the nvs flash, if it is 0 then the matrices from the flash will be
+    // written to those variables
+#if 0
+    // mats
+    esp_err_t err;
+    if ((err = nvs_set_blob(my_handle, "acc_mat", acc_correction_matrix, sizeof(acc_correction_matrix))) != ESP_OK) {
+        printf("Failed to set acc_correction_matrix\n");
+        printf("%d\n", err);
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "gyr_mat", gyr_correction_matrix, sizeof(gyr_correction_matrix)) != ESP_OK) {
+        printf("Failed to set gyr_correction_matrix\n");
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "mag_mat", mag_correction_matrix, sizeof(mag_correction_matrix)) != ESP_OK) {
+        printf("Failed to set mag_correction_matrix\n");
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "high_g_mat", high_g_correction_matrix, sizeof(high_g_correction_matrix)) != ESP_OK) {
+        printf("Failed to set high_g_correction_matrix\n");
+        esp_restart();
+    }
+
+
+    // vectors
+    if (nvs_set_blob(my_handle, "acc_vec", acc_bias_vector, sizeof(acc_bias_vector)) != ESP_OK) {
+        printf("Failed to set acc_bias_vector\n");
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "gyr_vec", gyr_bias_vector, sizeof(gyr_bias_vector)) != ESP_OK) {
+        printf("Failed to set gyr_bias_vector\n");
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "mag_vec", mag_bias_vector, sizeof(mag_bias_vector)) != ESP_OK) {
+        printf("Failed to set mag_bias_vector\n");
+        esp_restart();
+    }
+
+    if (nvs_set_blob(my_handle, "high_g_vec", high_g_bias_vector, sizeof(high_g_bias_vector)) != ESP_OK) {
+        printf("Failed to set high_g_bias_vector\n");
+        esp_restart();
+    }
+
+    printf("biases and mats written\n");
+    esp_restart();
+#else
+    size_t length = sizeof(acc_correction_matrix);
+
+    // mats
+    length = sizeof(acc_correction_matrix);
+    if (nvs_find_key(my_handle, "acc_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "acc_mat", acc_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load acc_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(gyr_correction_matrix);
+    if (nvs_find_key(my_handle, "gyr_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "gyr_mat", gyr_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load gyr_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(mag_correction_matrix);
+    if (nvs_find_key(my_handle, "mag_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "mag_mat", mag_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load mag_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(high_g_correction_matrix);
+    if (nvs_find_key(my_handle, "high_g_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "high_g_mat", high_g_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load high_g_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+
+    // vectors
+    length = sizeof(acc_bias_vector);
+    if (nvs_find_key(my_handle, "acc_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "acc_vec", acc_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load acc_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(gyr_bias_vector);
+    if (nvs_find_key(my_handle, "gyr_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "gyr_vec", gyr_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load gyr_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(mag_bias_vector);
+    if (nvs_find_key(my_handle, "mag_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "mag_vec", mag_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load mag_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(high_g_bias_vector);
+    if (nvs_find_key(my_handle, "high_g_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "high_g_vec", high_g_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load high_g_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    print_mat_3x3((float*) acc_correction_matrix);
+    print_mat_3x3((float*) gyr_correction_matrix);
+    print_mat_3x3((float*) mag_correction_matrix);
+    print_mat_3x3((float*) high_g_correction_matrix);
+    print_vec_3(acc_bias_vector);
+    print_vec_3(gyr_bias_vector);
+    print_vec_3(mag_bias_vector);
+    print_vec_3(high_g_bias_vector);
+
+#endif
+
 }
 
 void bmp_aquire_ground() {
@@ -112,12 +279,6 @@ void bmp_flight_init(){
 void bno_flight_init(){
     bno055_init(I2C_MASTER_PORT);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    
-    // Pass calibration matrices and bias vectors to the BNO interface
-    bno055_set_calibration(
-        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
-        acc_bias_vector, gyr_bias_vector, mag_bias_vector
-    );
 
     bno_setoprmode(CONFIG);
     vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -134,6 +295,13 @@ void bno_flight_init(){
     bno_set_acc_hgduration(10);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
+
+    calibrate_gyr_bias_5s();
+    // Pass calibration matrices and bias vectors to the BNO interface
+    bno055_set_calibration(
+        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
+        acc_bias_vector, gyr_bias_vector, mag_bias_vector
+    );
 }
 
 void lis331_flight_init(){
@@ -166,25 +334,6 @@ void lis331_flight_init(){
 
 
 #include "stdbool.h"
-
-static const float alpha = 0.1f;
-static imu_local_3d_t acc;
-static bool initialized = false;
-
-void accl_update(imu_local_3d_t new, imu_local_3d_t* out) {
-    if (!initialized) {
-        acc = new;
-        initialized = true;
-    }
-
-    acc.x = acc.x * alpha + new.x * (1.0f - alpha);
-    acc.y = acc.y * alpha + new.y * (1.0f - alpha);
-    acc.z = acc.z * alpha + new.z * (1.0f - alpha);
-
-    *out = acc;
-}
-
-
 
 #include "globals.h"
 #include "interface_bmp390l.h"
@@ -241,9 +390,9 @@ void baro_update(const baro_double_t * const baro, float *agl, float *vel, float
     *avg_vel = average_barometric_velocity;
 }
 
-void calibrate_gyr_bias_5s(bool use_filtered)
+void calibrate_gyr_bias_5s(void)
 {
-    const int64_t duration_us = 5 * 1000 * 1000;
+    const int64_t duration_us = 10 * 1000 * 1000;
     const TickType_t sample_period = pdMS_TO_TICKS(10);
 
     imu_local_3d_t acc, gyr, mag;
@@ -252,7 +401,7 @@ void calibrate_gyr_bias_5s(bool use_filtered)
 
     const int64_t t0 = esp_timer_get_time();
     while ((esp_timer_get_time() - t0) < duration_us) {
-        bno055_get_local(&acc, &gyr, &mag, use_filtered);
+        bno055_get_local(&acc, &gyr, &mag, false);
 
         sx += (double)gyr.x;
         sy += (double)gyr.y;
@@ -267,11 +416,6 @@ void calibrate_gyr_bias_5s(bool use_filtered)
     gyr_bias_vector[0] = -(float)(sx / (double)n);
     gyr_bias_vector[1] = -(float)(sy / (double)n);
     gyr_bias_vector[2] = -(float)(sz / (double)n);
-
-    bno055_set_calibration(
-        acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
-        acc_bias_vector, gyr_bias_vector, mag_bias_vector
-    );
 
     printf("Gyro bias updated (deg/s): bx=%f by=%f bz=%f (N=%u)\n",
            gyr_bias_vector[0], gyr_bias_vector[1], gyr_bias_vector[2], (unsigned)n);
