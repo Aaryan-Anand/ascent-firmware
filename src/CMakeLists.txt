@@ -2,13 +2,13 @@ idf_component_register(
     SRCS 
         "main.c"
         "globals.c"
-        "goober.c"
+        "radio/goober.c"
         "sensor/orientation.c"
         "sensor/sensor_manager.c"
         "sensor/sensor_filtering.c"
-        "move-to-drivers/lora_interface.c"
-        "move-to-drivers/flash_interface.c"
-        "move-to-drivers/nvs_interface.c"
+        "radio/lora_interface.c"
+        "memory/flash_interface.c"
+        "memory/nvs_interface.c"
         "fsm/flight.c"
         "sensor/sensor_fusion.c"
         "sitl/serial_util.c"
@@ -16,7 +16,8 @@ idf_component_register(
     INCLUDE_DIRS 
         "sitl"
         "fsm"
-        "move-to-drivers"
+        "radio"
+        "memory"
         "sensor"
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
 )
