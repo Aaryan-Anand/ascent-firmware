@@ -43,8 +43,11 @@ int32_t hMSL;
 uint8_t fixType;
 uint8_t numSV;
 
+#define INDIVIDUAL
+
 // #define MEASURE_PERFORMANCE
 
+#ifndef INDIVIDUAL
 void app_main(void) {
     fflush(stdout);
     
@@ -78,4 +81,30 @@ void app_main(void) {
            MEASUREMENTS, (end - start)/1000, (end - start)/MEASUREMENTS);
 
 }
+#endif
 
+#ifdef INDIVIDUAL
+void app_main(void) {
+    fflush(stdout);
+    
+    i2c_init();
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+
+    GPS_init();
+
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    
+    const unsigned MEASUREMENTS = 5000;
+
+    uint64_t start;
+    uint64_t end;
+
+    for (int retries = 0; retries < MEASUREMENTS; retries++) {
+        start = esp_timer_get_time();
+        GPS_read(&timestamp, &lon, &lat, &height, &hMSL, &fixType, &numSV);
+        end = esp_timer_get_time();
+        printf("%llu\n", (end - start));
+    }
+
+}
+#endif

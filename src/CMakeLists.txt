@@ -2,7 +2,6 @@ idf_component_register(
     SRCS 
         "main.c"
         "globals.c"
-        "beep.c"
         "sensor_manager.c"
         "lora_interface.c"
         "flash_interface.c"
