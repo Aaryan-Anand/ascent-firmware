@@ -15,6 +15,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#include "nvs_interface.h"
+
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
@@ -43,7 +45,7 @@ static const char* bank_keys[BANKS] = {
 QueueHandle_t flash_packet_queue;
 
 void flash_erase_jingle(void);
-static esp_err_t flash_erase_bank(int bank);
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume);
 
 uint32_t flash_get_addr() {
     return addr;
@@ -62,30 +64,10 @@ void flash_flight_init(void)
         esp_restart();
     }
 
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // nvs_flash_erase();
-        // nvs_flash_init();
+    // not needed called by init boot sequence
+    // nvs_interface_init();
 
-        // here the nvs flash has been over run for some reason and needs to be
-        // totally erased
-        // so we don't lose bank data this throws an error and
-        // requires a manual recompile to call the above functions after all
-        // data from banks has been saved and the whole external flash chip has
-        // been erased
-
-        printf("Failed initalize nvs flash\n");
-
-        for (int i = 0; i < 4; i++) {
-            error_beep();
-            vTaskDelay(500 / portTICK_PERIOD_MS);
-        }
-        esp_restart();
-    }
-
-    if (nvs_open("storage", NVS_READWRITE, &my_handle) != ESP_OK) {
-        printf("Failed open nvs storage\n");
-    }
+    my_handle = nvs_interface_get_handle();
 
     if (nvs_find_key(my_handle, "bank", NULL) != ESP_OK) {
         printf("Can't find 'bank' key nvs flash, rebuilding\n");
@@ -109,6 +91,24 @@ void flash_flight_init(void)
     assert(flash_packet_queue != NULL);
 }
 
+bool flash_erase_next_bank_no_advance(int64_t max_time, int32_t* resume) {
+    int32_t bank;
+
+    if (nvs_get_i32(my_handle, "bank", &bank) != ESP_OK) {
+        // now we don't know what bank to use please fail
+        printf("Why do we have no bank?\n");
+        return false;
+    }
+
+    int32_t next_bank = (bank + 1) % BANKS;
+
+    if (flash_erase_bank(next_bank, max_time, resume) != ESP_OK) {
+        return false;
+    }
+
+    return true;
+}
+
 bool flash_prepare_for_flight(void) {
     printf("DOING CHIP ERASE\n");
 
@@ -122,10 +122,19 @@ bool flash_prepare_for_flight(void) {
         esp_restart();
     }
 
+    // erase next bank
+    int32_t resume = -1;
+    if (!flash_erase_next_bank_no_advance(0, &resume)) {
+        printf("Erasing next bank failed\n");
+        for (int i = 0; i < 5; i++) {
+            error_beep();
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        esp_restart();
+    }
+
+    // actually advance the bank
     current_bank = (current_bank + 1) % BANKS;
-
-    flash_erase_bank(current_bank);
-
     addr = current_bank*BANK_SIZE;
 
     nvs_set_i32(my_handle, "bank", current_bank);
@@ -134,22 +143,43 @@ bool flash_prepare_for_flight(void) {
     return true;
 }
 
-static esp_err_t flash_erase_bank(int bank) {
+// max_time == 0 means that the bank must be fully erased and that the function will block to ensure that
+static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
+    int64_t start = esp_timer_get_time();
+
     printf("Erasing bank: %d\n", bank);
     int32_t used_bytes;
     nvs_get_i32(my_handle, bank_keys[bank], &used_bytes);
     int32_t used = (used_bytes + SECTOR_SIZE - 1)/SECTOR_SIZE;
 
-    uint32_t base = bank*SECTORS_IN_BANK;
-    for (uint32_t i = 0; i < used; i++) {
-        w25qxx_sector_erase((base+i)*SECTOR_SIZE);
-        printf("%f\n", (float) i / (float) used);
+    static uint32_t i;
+    if (max_time == 0) i = 0;
+    else {
+        if (*resume == -1) i = 0;
+        else i = *resume;
     }
 
-    nvs_set_i32(my_handle, bank_keys[bank], 0);
+    uint32_t base = bank*SECTORS_IN_BANK;
 
-    return ESP_OK;
+    bool should_stop = ((esp_timer_get_time() - start) >= max_time);
+    if (max_time == 0) should_stop = false;
+    while (!should_stop && i < used) {
+        w25qxx_sector_erase((base+i)*SECTOR_SIZE);
+        printf("%f\n", (float) i / (float) used);
+
+        i++;
+    }
+
+    if(i >= used) {
+        nvs_set_i32(my_handle, bank_keys[bank], 0);
+        *resume = -1;
+        return ESP_OK;
+    } else {
+        *resume = i;
+        return ESP_ERR_NOT_FINISHED;
+    }
 }
+
 
 void flash_dump_to_serial(int bank) {
     flash_packet fp;
@@ -198,6 +228,14 @@ void flash_dump_to_serial(int bank) {
         printf("%f,", fp.barometric_velocity);
         printf("%f,", fp.average_barometric_velocity);
 
+        printf("%f,", fp.orientation.roll);
+        printf("%f,", fp.orientation.pitch);
+        printf("%f,", fp.orientation.yaw);
+        printf("%f,", fp.orientation.qw);
+        printf("%f,", fp.orientation.qx);
+        printf("%f,", fp.orientation.qy);
+        printf("%f,", fp.orientation.qz);
+
         printf("%f,", fp.latitude);
         printf("%f,", fp.longitude);
         printf("%lu,", fp.gps_altitude);
@@ -225,7 +263,7 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     packet->n = n++;
-    while (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+    if (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
         // vTaskDelay(pdMS_TO_TICKS(1)); 
         printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
     }
