@@ -105,6 +105,7 @@ void primary_task(void *pvParameters) {
 
     while (1) {
         uint8_t flight_state = get_flight_state();
+        pyro_update_state();
         // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
