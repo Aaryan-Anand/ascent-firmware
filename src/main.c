@@ -1,3 +1,4 @@
+//MARK: - ESP-IDF
 #include <stdio.h>
 #include <inttypes.h>
 #include "sdkconfig.h"
@@ -14,77 +15,84 @@
 #include <rom/ets_sys.h>
 #include "driver/uart.h"
 #include "math.h"
-#include "orientation.h"
+#include "driver/gpio.h"
+#include "serial_util.h"
 
 #include "neopixel.h"
 #define PIXEL_COUNT  1
 #define NEOPIXEL_PIN GPIO_NUM_21
 static tNeopixelContext neopixel;
 
+
+
+
+
+//MARK: - ASCENT Drivers
+#include "ascent_r2_hardware_definition.h"
+//managers
+#include "i2c_manager.h"
+#include "spi_manager.h"
+//drivers
+#include "driver_bno055.h"
+#include "driver_H3LIS331DL.h"
+#include "driver_BMP390L.h"
+#include "driver_w25qxx.h"
+#include "lora.h"
+#include "driver_pyro.h"
+#include "driver_psu.h"
+#include "driver_buzzer.h"
+//interfaces
+#include "interface_bmp390l.h"
+#include "interface_sam_m10q.h"
+#include "beep.h"
+
+
+
+
+
+//MARK: - SRC Includes
+#include "main.h"
+#include "globals.h"
+//FSM
+#include "flight.h"
+#include "flight_config.h"
+//Memory
+#include "flash_interface.h"
+#include "nvs_interface.h"
+//radio
+#include "lora_interface.h"
+#include "goober.h"
+//Sensor
+#include "sensor_manager.h"
+#include "sensor_filtering.h"
+#include "orientation.h"
+#include "sensor_fusion.h"
+//SITL
+#include "sitl.h"
+
+
+
+
+
+
+
+//MARK: - DEBUG Defines
+// #define GENERAL_DEBUG
+// #define ARM_REGARDLESS_OF_TXLOCK
 //#define FUSION_DEBUG
 //#define DEBUG
 
-#include "driver_H3LIS331DL.h"
-#include "interface_bmp390l.h"
-#include "interface_sam_m10q.h"
-#include "lora.h"
-#include "driver_buzzer.h"
-#include "driver_pyro.h"
-#include "driver_psu.h"
-#include "driver_psu.h"
-#include "driver_bno055.h"
-#include "driver_BMP390L.h"
-#include "driver_w25qxx.h"
-#include "driver/gpio.h"
 
-#include "goober.h"
 
-#include "i2c_manager.h"
-#include "spi_manager.h"
 
-#include "ascent_r2_hardware_definition.h"  // Hardware definitions
 
-#include "globals.h"
 
-#include "sensor_manager.h"
-#include "beep.h"
-#include "lora_interface.h"
-#include "flash_interface.h"
-#include "flight.h"
-#include "flight_config.h"
-#include "sensor_fusion.h"
-#include "sensor_filtering.h"
-#include "serial_util.h"
-#include "nvs_interface.h"
 
-#include "sitl.h"
 
-#include "sensor_fusion.h"
-// #define GENERAL_DEBUG
-// #define ARM_REGARDLESS_OF_TXLOCK
 
-void validate_esp32(void);
-void init_boot_sequence(void);
-void beep_pyro_cont(void);
-void turn_on_cameras(void);
-void turn_on_fan(void);
-void flash_erase_jingle(void);
-void fail_if_barometer_bad(void);
 
-void update_loop_rate(void);
-void low_power_mode_no_gps(void);
-void high_power_mode(void);
 
-// from lora_interface.c
-void turn_off_cameras(void);
-void turn_off_fan(void);
-void fake_tx_lock(void);
-
-uint8_t calc_pyro_arm(void);
-
-void try_to_dump_data();
-void print_flash_packet(flash_packet *fp);
-
+//MARK: - Primary Task
 TaskHandle_t primary_task_handle;
 int primary_loop_fq = 50;
 TickType_t xFrequency_primary;
@@ -93,12 +101,7 @@ void primary_task(void *pvParameters) {
 
     uint32_t cycle = 0;
 
-    int32_t lon;
-    int32_t lat;
-    int32_t gps_altitude;
-    int32_t hMSL;
-    uint8_t fixType;
-    uint8_t numSV;  
+    GPS_data_t gps_data;
 
     int32_t resume = -1;
     bool flash_erase_next_bank_on_landed_finished = false;
@@ -114,11 +117,10 @@ void primary_task(void *pvParameters) {
         if (flight_state == FS_PREFLIGHT) {
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
                 // in pre flight we still want to know that the gps works so just poll it at 1 Hz
-                uint32_t UTCtstamp;
-                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                GPS_read(&gps_data);
 
                 uint8_t current_flight_state = get_flight_state();
-                goober_payload_t telemetry = gooberCreateTelemetry(0, 0, 0, 0, 0, 0, 0, 0, 0, numSV, current_flight_state);
+                goober_payload_t telemetry = gooberCreateTelemetry(0, 0, 0, 0, 0, 0, 0, 0, 0, gps_data.numSV, current_flight_state);
                 queueLatestTelemetryPayload(&telemetry);
 
                 // we still need to call flight_update to get out of preflight so we just call it with all zeros
@@ -135,8 +137,7 @@ void primary_task(void *pvParameters) {
 
             // read the GPS at 10 Hz
             if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
-                uint32_t UTCtstamp;
-                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                GPS_read(&gps_data);
                 // runtime[0] = esp_timer_get_time() - start_time;
                 // dt[0] = runtime[0];
             }
@@ -217,7 +218,7 @@ void primary_task(void *pvParameters) {
                     roll = g_orientation.roll;
                     xSemaphoreGive(g_orientation_mutex);
                 }
-                goober_payload_t telemetry = gooberCreateTelemetry(lat, lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, numSV, flight_state);
+                goober_payload_t telemetry = gooberCreateTelemetry(gps_data.lat, gps_data.lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, gps_data.numSV, flight_state);
                 queueLatestTelemetryPayload(&telemetry);
 
                 flash_packet fp = {
@@ -234,9 +235,9 @@ void primary_task(void *pvParameters) {
                     .barometric_velocity = barometric_velocity,
                     .average_barometric_velocity = average_barometric_velocity,
                     .orientation = g_orientation,
-                    .latitude = lat,
-                    .longitude = lon,
-                    .gps_altitude = gps_altitude,
+                    .latitude = gps_data.lat,
+                    .longitude = gps_data.lon,
+                    .gps_altitude = gps_data.height,
                     .bat_voltage = psu_read_battery_voltage(),
                 };
                 #ifdef DEBUG
@@ -255,10 +256,9 @@ void primary_task(void *pvParameters) {
 
             // since the fq is just 2 Hz just poll the gps as fast as the loop goes
             if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                uint32_t UTCtstamp;
-                GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
+                GPS_read(&gps_data);
 
-                goober_payload_t locator_packet = gooberCreateTelemetry(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
+                goober_payload_t locator_packet = gooberCreateTelemetry(gps_data.lat, gps_data.lon, 0, 0, 0, 0, 0, 0, 0, gps_data.numSV, flight_state);
                 queueLatestTelemetryPayload(&locator_packet);
 
                 if (!flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, &resume)) {
