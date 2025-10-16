@@ -22,7 +22,7 @@
 static tNeopixelContext neopixel;
 
 //#define FUSION_DEBUG
-#define DEBUG
+//#define DEBUG
 
 #include "driver_H3LIS331DL.h"
 #include "interface_bmp390l.h"
