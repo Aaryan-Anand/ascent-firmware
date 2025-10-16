@@ -15,6 +15,11 @@
 void i2c_init(void);
 
 /**
+ * @brief Initalize the sensor manager and load calib matricies
+ */
+void sensor_manager_init();
+
+/**
  * @brief Update the ground alt for the barometer
  */
 void bmp_aquire_ground();

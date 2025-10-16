@@ -55,6 +55,7 @@ static tNeopixelContext neopixel;
 #include "sensor_fusion.h"
 #include "sensor_filtering.h"
 #include "serial_util.h"
+#include "nvs_interface.h"
 
 #include "sitl.h"
 
@@ -98,6 +99,9 @@ void primary_task(void *pvParameters) {
     int32_t hMSL;
     uint8_t fixType;
     uint8_t numSV;  
+
+    int32_t resume = -1;
+    bool flash_erase_next_bank_on_landed_finished = false;
 
     while (1) {
         uint8_t flight_state = get_flight_state();
@@ -254,8 +258,12 @@ void primary_task(void *pvParameters) {
                 uint32_t UTCtstamp;
                 GPS_read(&UTCtstamp, &lon, &lat, &gps_altitude, &hMSL, &fixType, &numSV);
 
-                goober_payload_t locator_packet = gooberCreateTelemetry(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state); // todo: make actual locator message - abdul
+                goober_payload_t locator_packet = gooberCreateTelemetry(lat, lon, 0, 0, 0, 0, 0, 0, 0, numSV, flight_state);
                 queueLatestTelemetryPayload(&locator_packet);
+
+                if (!flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, &resume)) {
+                    flash_erase_next_bank_on_landed_finished = true;
+                }
             }
         }
 
@@ -382,6 +390,38 @@ void app_main(void) {
     ascent_beep();
     globals_init();
     init_boot_sequence();
+
+    // will be populated or used to set in flash
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+#if 0
+        if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
+            printf("Failed to set uuid\n");
+            printf("%d\n", err);
+            esp_restart();
+        }
+        printf("Set UUID\n");
+        esp_restart();
+#else
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(uuid);
+            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+            for (int i = 0; i < 16; i++) {
+                printf("%X ", uuid[i]);
+            }
+            printf("\n");
+        } else {
+            printf("using fallback uuid\n");
+        }
+#endif
+    }
+
 
     // Set origin vectors during boot sequence
 #ifndef FUSION_DEBUG
@@ -513,6 +553,12 @@ void init_boot_sequence(void) {
     spi_manager_init(SPI2_HOST, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK);
     vTaskDelay(pdMS_TO_TICKS(50));
 
+    nvs_interface_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    sensor_manager_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
     bmp_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -558,7 +604,9 @@ void fail_if_barometer_bad() {
     for (int i = 0; i < n; i++) {
         baro_double_t baro_out;
         bmp390_get_local(&baro_out);
-        printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #ifdef BARO_TEST
+            printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #endif
         if (baro_out.pressure <= 0) {
             while (true) {
                 error_beep();

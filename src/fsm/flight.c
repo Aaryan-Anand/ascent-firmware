@@ -35,43 +35,7 @@ static bool deploy(pyro_channel_t channel)
 // VS code may say that this is an error bc it can't see APPO_GS but it will compile
 #define APPO_COND (average_barometric_velocity < 0 && fabs(xacc) < APPO_GS)
 
-bool flight_update_boost(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-);
-bool flight_update_sust(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-);
-
 bool flight_update(
-    float barometric_agl,
-    float barometric_velocity,
-    float average_barometric_velocity,
-    float xacc
-) {
-#ifdef IS_BOOSTER
-    return flight_update_boost(
-        barometric_agl,
-        barometric_velocity,
-        average_barometric_velocity,
-        xacc
-    );
-#else
-    return flight_update_sust(
-        barometric_agl,
-        barometric_velocity,
-        average_barometric_velocity,
-        xacc
-    );
-#endif
-}
-
-bool flight_update_sust(
     float barometric_agl,
     float barometric_velocity,
     float average_barometric_velocity,
@@ -362,6 +326,7 @@ bool flight_update_boost(
     }
 
     return flight_state != pre;
+
 }
 
 uint8_t get_flight_state(void) {
