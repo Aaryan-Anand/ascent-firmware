@@ -14,6 +14,8 @@ void high_power_mode(void);
 
 void beep_pyro_cont(void);
 
+void read_uuid(void);
+
 void primary_preflight(uint32_t *cycle, GPS_data_t *gps_data);
 void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state);
 void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state, bool *flash_erase_next_bank_on_landed_finished, int32_t *resume);

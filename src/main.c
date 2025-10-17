@@ -237,41 +237,10 @@ void app_main(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     ascent_beep();
+    read_uuid();
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     globals_init();
     init_boot_sequence();
-
-    // will be populated or used to set in flash
-    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-    {
-        nvs_handle_t my_handle = nvs_interface_get_handle();
-        // if this is a 1 it will write the uuid to the nvs flash
-        // if it is 0 it will load the correct value from the nvs flash
-        //MARK: NVS UUID SET
-        #if 0
-        if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
-            printf("Failed to set uuid\n");
-            printf("%d\n", err);
-            esp_restart();
-        }
-        printf("Set UUID\n");
-        esp_restart();
-        #else
-        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
-            size_t length = sizeof(uuid);
-            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
-                printf("Failed to load uuid\n");
-                esp_restart();
-            }
-            for (int i = 0; i < 16; i++) {
-                printf("%X ", uuid[i]);
-            }
-            printf("\n");
-        } else {
-            printf("using fallback uuid\n");
-        }
-#endif
-    }
-
 
     // Set origin vectors during boot sequence
     #ifndef FUSION_DEBUG
@@ -460,6 +429,34 @@ void beep_pyro_cont(void) {
 
 
 
+
+
+
+
+
+//MARK: - Read UUID
+void read_uuid(void){
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+        
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(uuid);
+            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+            printf("UUID: ");
+            printf((char)uuid[0], (char)uuid[2], (char)uuid[4], (char)uuid[6], (char)uuid[8]);
+            printf("%X.%X.%X-%X%X%X", uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
+            printf("\n");
+        } else {
+            printf("using fallback uuid\n");
+        }
+    }
+}
 
 //MARK: - Update Loop Rate
 void update_loop_rate(void) {
