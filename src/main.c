@@ -80,7 +80,7 @@ static tNeopixelContext neopixel;
 // #define GENERAL_DEBUG
 // #define ARM_REGARDLESS_OF_TXLOCK
 //#define FUSION_DEBUG
-//#define DEBUG
+#define DEBUG
 
 
 
@@ -237,41 +237,9 @@ void app_main(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     ascent_beep();
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
     globals_init();
     init_boot_sequence();
-
-    // will be populated or used to set in flash
-    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-    {
-        nvs_handle_t my_handle = nvs_interface_get_handle();
-        // if this is a 1 it will write the uuid to the nvs flash
-        // if it is 0 it will load the correct value from the nvs flash
-        //MARK: NVS UUID SET
-        #if 0
-        if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
-            printf("Failed to set uuid\n");
-            printf("%d\n", err);
-            esp_restart();
-        }
-        printf("Set UUID\n");
-        esp_restart();
-        #else
-        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
-            size_t length = sizeof(uuid);
-            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
-                printf("Failed to load uuid\n");
-                esp_restart();
-            }
-            for (int i = 0; i < 16; i++) {
-                printf("%X ", uuid[i]);
-            }
-            printf("\n");
-        } else {
-            printf("using fallback uuid\n");
-        }
-#endif
-    }
-
 
     // Set origin vectors during boot sequence
     #ifndef FUSION_DEBUG
@@ -409,6 +377,9 @@ void init_boot_sequence(void) {
     nvs_interface_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    read_uuid();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
     sensor_manager_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
@@ -460,6 +431,36 @@ void beep_pyro_cont(void) {
 
 
 
+
+
+
+
+
+//MARK: - Read UUID
+void read_uuid(void){
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+        
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(uuid);
+            if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+            printf("UUID: ");
+            for(uint8_t i = 0; i < 5; i++) {
+                printf("%c", (((uint16_t)uuid[i*2] << 4) | uuid[i*2 + 1]));
+            }
+            printf("%X.%X.%X-%X%X%X", uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
+            printf("\n");
+        } else {
+            printf("using fallback uuid\n");
+        }
+    }
+}
 
 //MARK: - Update Loop Rate
 void update_loop_rate(void) {
@@ -670,9 +671,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         print_flash_packet(&fp);
         #else
         // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
-        if (is_tx_lock() && *flight_state != FS_ON_PAD && *flight_state != FS_LANDED) {
-            flash_queue_packet(&fp);
-        }
+        flash_queue_packet(&fp);
         #endif
     }
 }
@@ -699,23 +698,25 @@ void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
 //MARK: - Secondary Flight
 void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t *rsp_packet, goober_t *txlock_packet) {
     goober_payload_t telemetry_payload;
-        peekLatestTelemetryPayload(&telemetry_payload);
+    peekLatestTelemetryPayload(&telemetry_payload);
 
-        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            if(!is_tx_lock()) {
-                *rcv = lora_blocking_listen(rcv_packet, 21);
-                if (rcv) {
-                    *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
-                    lora_transmit_packet(rsp_packet);
-                }
-            } else {
-                *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
-                txlock_packet->DEV_MODE = 0x08;
-                lora_transmit_packet(txlock_packet);
+    uint8_t flight_state = telemetry_payload.telemetry.flight_state;
+
+    if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+        if(!is_tx_lock()) {
+            *rcv = lora_blocking_listen(rcv_packet, 21);
+            if (rcv) {
+                *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
+                lora_transmit_packet(rsp_packet);
             }
+        } else {
+            *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
+            txlock_packet->DEV_MODE = 0x08;
+            lora_transmit_packet(txlock_packet);
         }
+    }
 
-        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            flash_write_queue(1000/secondary_loop_fq*1e3/2);
-        }
+    if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+        if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) flash_write_queue(1000/secondary_loop_fq*1e3/2);
+    }
 }
