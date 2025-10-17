@@ -250,7 +250,7 @@ void bno_flight_init(){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
 
-    calibrate_gyr_bias_5s();
+    //calibrate_gyr_bias_5s();
     // Pass calibration matrices and bias vectors to the BNO interface
     bno055_set_calibration(
         acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix,
