@@ -9,7 +9,7 @@
 #include "flash_interface.h"
 #include "driver_psu.h"
 
-#define TELEM_PAYLOAD_SIZE 32 // matches sizeof(goober_post_telemetry_payload_t)
+#define TELEM_PAYLOAD_SIZE sizeof(goober_post_telemetry_payload_t)
 #define SLAVE_DEV_ID 0x41
 
 // #define GOOBER_DEBUG
@@ -279,7 +279,8 @@ goober_payload_t gooberCreateTelemetry(int32_t latitude, int32_t longitude, floa
 	payload.telemetry.sats = sats;
     payload.telemetry.flight_state = flight_state;
 	float voltage = psu_read_battery_voltage();
-	payload.telemetry.battery_voltage = (uint16_t)(voltage * 2500);
+	uint16_t voltage_16 = (uint16_t)(voltage * 2500);
+	payload.telemetry.battery_voltage = voltage_16;
 
     return payload;
 }
