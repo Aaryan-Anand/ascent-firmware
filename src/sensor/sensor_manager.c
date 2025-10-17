@@ -87,58 +87,7 @@ static nvs_handle_t my_handle;
 void sensor_manager_init() {
     my_handle = nvs_interface_get_handle();
 
-    // if this 0 is changed to a 1 the matrices in the code above will be loaded
-    // to the nvs flash, if it is 0 then the matrices from the flash will be
-    // written to those variables
-#if 0
-    // mats
-    esp_err_t err;
-    if ((err = nvs_set_blob(my_handle, "acc_mat", acc_correction_matrix, sizeof(acc_correction_matrix))) != ESP_OK) {
-        printf("Failed to set acc_correction_matrix\n");
-        printf("%d\n", err);
-        esp_restart();
-    }
 
-    if (nvs_set_blob(my_handle, "gyr_mat", gyr_correction_matrix, sizeof(gyr_correction_matrix)) != ESP_OK) {
-        printf("Failed to set gyr_correction_matrix\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "mag_mat", mag_correction_matrix, sizeof(mag_correction_matrix)) != ESP_OK) {
-        printf("Failed to set mag_correction_matrix\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "high_g_mat", high_g_correction_matrix, sizeof(high_g_correction_matrix)) != ESP_OK) {
-        printf("Failed to set high_g_correction_matrix\n");
-        esp_restart();
-    }
-
-
-    // vectors
-    if (nvs_set_blob(my_handle, "acc_vec", acc_bias_vector, sizeof(acc_bias_vector)) != ESP_OK) {
-        printf("Failed to set acc_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "gyr_vec", gyr_bias_vector, sizeof(gyr_bias_vector)) != ESP_OK) {
-        printf("Failed to set gyr_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "mag_vec", mag_bias_vector, sizeof(mag_bias_vector)) != ESP_OK) {
-        printf("Failed to set mag_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "high_g_vec", high_g_bias_vector, sizeof(high_g_bias_vector)) != ESP_OK) {
-        printf("Failed to set high_g_bias_vector\n");
-        esp_restart();
-    }
-
-    printf("biases and mats written\n");
-    esp_restart();
-#else
     size_t length = sizeof(acc_correction_matrix);
 
     // mats
@@ -232,9 +181,6 @@ void sensor_manager_init() {
     print_vec_3(gyr_bias_vector);
     print_vec_3(mag_bias_vector);
     print_vec_3(high_g_bias_vector);
-
-#endif
-
 }
 
 void bmp_aquire_ground() {
