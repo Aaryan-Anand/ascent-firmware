@@ -46,7 +46,7 @@ static const char* bank_keys[BANKS] = {
     "bank_7",
 };
 
-#define RING_BUFFER_SIZE 100
+#define RING_BUFFER_SIZE 50
 QueueHandle_t flash_packet_queue;
 
 void flash_erase_jingle(void);
@@ -277,7 +277,7 @@ void flash_queue_packet(flash_packet *packet) {
         flash_packet oldItem;
         xQueueReceive(flash_packet_queue, &oldItem, 0);
         
-        if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
+        if (xQueueSendToBack(flash_packet_queue, packet, 1) != pdTRUE) {
             // vTaskDelay(pdMS_TO_TICKS(1)); 
             printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
         }
