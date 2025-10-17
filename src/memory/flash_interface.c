@@ -19,6 +19,9 @@
 
 #include "nvs_interface.h"
 
+#include "beep.h"
+#include "driver_buzzer.h"
+
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
 
@@ -142,6 +145,7 @@ bool flash_prepare_for_flight(void) {
     nvs_set_i32(my_handle, "bank", current_bank);
     printf("Ready to fly using bank: %ld\n", current_bank);
 
+	flash_erase_jingle();
     return true;
 }
 
@@ -328,6 +332,7 @@ void try_to_dump_data() {
     int i = 0;
     while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
         if (strcmp("DUMP", buf) == 0) {
+            printf("n,timestamp,pyro_arm,flight_state,acc_x,acc_y,acc_z,gyr_x,gyr_y,gyr_z,mag_x,mag_y,mag_z,high_g_acc_x,high_g_acc_y,high_g_acc_z,baro_alt,baro_pressure,baro_temperature,barometric_agl,barometric_velocity,average_barometric_velocity,yaw,pitch,roll,lat,long,gps_alt,volt\n");
             while (true) {
                 printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
                 while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
@@ -343,6 +348,14 @@ void try_to_dump_data() {
     }
 }
 
+void flash_erase_jingle(void) {
+    note(NOTE_E, 8, 120);
+    note(NOTE_G, 8, 120);
+    note(NOTE_C, 7, 200);
+    note(NOTE_D, 7, 120);
+    note(NOTE_B, 6, 250);
+    note(NOTE_E, 7, 400);
+}
 
 void print_flash_packet(flash_packet *fp) {
     printf("fp:\t");

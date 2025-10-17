@@ -5,7 +5,6 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "sensor_manager.h"
-#include "driver_buzzer.h"
 #include "flash_interface.h"
 #include "driver_psu.h"
 
@@ -43,15 +42,6 @@ static bool deploy(pyro_channel_t channel)
     return false;
 }
 
-void flash_erase_jingle(void) {
-    note(NOTE_E, 8, 120);
-    note(NOTE_G, 8, 120);
-    note(NOTE_C, 7, 200);
-    note(NOTE_D, 7, 120);
-    note(NOTE_B, 6, 250);
-    note(NOTE_E, 7, 400);
-}
-
 void turn_on_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,0,1); 
 }
@@ -61,9 +51,8 @@ void turn_off_fan(void) {
 }
 
 void fake_tx_lock(void) { // DO NOT REMOVE, required to allow flight with only one way coms - Luke
-	TXLOCK = flash_prepare_for_flight();
 	bmp_aquire_ground();
-	flash_erase_jingle();
+	TXLOCK = flash_prepare_for_flight();
 	atomic_store(&thread_safe_txlock, true);
 	printf("Faked tx lock ready to fly.\n");
 }
@@ -154,9 +143,8 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			#ifdef LORA_DEBUG
 			printf("Received REQ_TXLOCK_ACTIVATE\n");
 			#endif
-			TXLOCK = flash_prepare_for_flight();
 			bmp_aquire_ground();
-			flash_erase_jingle();
+			TXLOCK = flash_prepare_for_flight();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
