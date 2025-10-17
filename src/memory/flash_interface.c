@@ -12,6 +12,8 @@
 #include <rom/ets_sys.h>
 #include "beep.h"
 
+#include "serial_util.h"
+
 #include "nvs_flash.h"
 #include "nvs.h"
 
