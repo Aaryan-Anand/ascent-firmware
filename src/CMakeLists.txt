@@ -20,4 +20,5 @@ idf_component_register(
         "memory"
         "sensor"
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
+    REQUIRES esp_timer
 )
