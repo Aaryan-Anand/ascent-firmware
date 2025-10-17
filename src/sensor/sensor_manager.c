@@ -9,6 +9,7 @@
 #include "freertos/semphr.h"
 #include "esp_timer.h"
 #include "nvs_interface.h"
+#include "beep.h"
 
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;

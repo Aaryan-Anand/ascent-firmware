@@ -107,169 +107,27 @@ void primary_task(void *pvParameters) {
     bool flash_erase_next_bank_on_landed_finished = false;
 
     while (1) {
-#ifdef IS_SITL
+        #ifdef IS_SITL
         sitl_update();
-#endif
+        #endif
 
         uint8_t flight_state = get_flight_state();
         pyro_update_state();
-        // uint64_t start_time = esp_timer_get_time();
 
         // we are not using a switch case here since we want to be able to declare variables within the different state handlers
         // I know that you can do things like an an empty statement but that is weird
 
         // when in preflight state we do nothing but send the battery voltage
         if (flight_state == FS_PREFLIGHT) {
-            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                // in pre flight we still want to know that the gps works so just poll it at 1 Hz
-                GPS_read(&gps_data);
-
-                uint8_t current_flight_state = get_flight_state();
-                goober_payload_t telemetry = gooberCreateTelemetry(0, 0, 0, 0, 0, 0, 0, 0, 0, gps_data.numSV, current_flight_state);
-                queueLatestTelemetryPayload(&telemetry);
-
-                // we still need to call flight_update to get out of preflight so we just call it with all zeros
-                if (flight_update(0, 0, 0, 0)) {
-                    if (get_flight_state() == FS_ON_PAD) {
-                        update_loop_rate();
-                        high_power_mode();
-                    }
-                }
-            }
-        } else if (flight_state != FS_LANDED) {
-            // for all other states that are not preflight and landed we want to be running at full tilt running all flight tasks
-            // the loop will now be running at 50 Hz
-
-            // read the GPS at 10 Hz
-            if (cycle % (uint32_t)(primary_loop_fq/10) == 0) {
-                GPS_read(&gps_data);
-                // runtime[0] = esp_timer_get_time() - start_time;
-                // dt[0] = runtime[0];
-            }
-
-            // read all sensors and send data to secondary task
-            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                imu_local_3d_t local_acc, local_gyr, local_mag;
-                imu_float_3d_t high_g_acc;
-                //dcs_3d_t body_relative_dcs;
-                baro_double_t baro;
-
-                // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
-#ifdef IS_SITL
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
-                local_acc.x = get_current_vertical_accl();
-                printf("Serial: %f\n", local_acc.x);
-#else
-                bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
-#endif
-
-                h3lis331dl_get_local(&high_g_acc, true);
-
-                // bmp390_get_local(&baro);
-#ifdef IS_SITL
-                baro.alt = get_current_baro_alt();
-#else
-                bmp390_get_local(&baro);
-#endif
-                
-                //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
-                
-                sensor_filter_acc(&local_acc, flight_state);
-                sensor_filter_gyr(&local_gyr, flight_state);
-                sensor_filter_mag(&local_mag, flight_state);
-                sensor_filter_high_g_acc(&high_g_acc, flight_state);
-                // runtime[2] = esp_timer_get_time() - start_time;
-                // dt[2] = runtime[2]-runtime[1];
-                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
-                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
-                    orientation_sync_euler_from_quat(&g_orientation);
-                    xSemaphoreGive(g_orientation_mutex);
-                } else {
-                    orientation_update_from_euler_rates(&g_orientation, &local_gyr);
-                    orientation_sync_euler_from_quat(&g_orientation);
-                }
-                // runtime[3] = esp_timer_get_time() - start_time;
-                // dt[3] = runtime[3]-runtime[2];
-                float barometric_agl;
-                float barometric_velocity;
-                float average_barometric_velocity;
-                baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
-                // runtime[4] = esp_timer_get_time() - start_time;
-                // dt[4] = runtime[4]-runtime[3];
-                // float phi = 0;
-                if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, local_acc.x)) {
-                    // if the flight state changes we may need to update the loop rates
-                    // the loop rates will only change if we go into landed
-                    update_loop_rate();
-
-                    if (get_flight_state() == FS_PREFLIGHT) {
-                        low_power_mode_no_gps();
-                    }
-
-                    // if we just went into landed power down everything except GPS
-                    if (get_flight_state() == FS_LANDED) {
-                        low_power_mode_no_gps();
-                        turn_off_cameras();
-                        turn_off_fan();
-                    }
-                }
-                // runtime[5] = esp_timer_get_time() - start_time;
-                // dt[5] = runtime[5]-runtime[4];
-                // always queue up latest telemetry for secondary task
-                float yaw = 0, pitch = 0, roll = 0;
-                if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
-                    yaw = g_orientation.yaw;
-                    pitch = g_orientation.pitch;
-                    roll = g_orientation.roll;
-                    xSemaphoreGive(g_orientation_mutex);
-                }
-                goober_payload_t telemetry = gooberCreateTelemetry(gps_data.lat, gps_data.lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, gps_data.numSV, flight_state);
-                queueLatestTelemetryPayload(&telemetry);
-
-                flash_packet fp = {
-                    .n = 0,
-                    .timestamp = esp_timer_get_time(),
-                    .pyro_arm = calc_pyro_arm(),
-                    .flight_state = flight_state,
-                    .acc = local_acc,
-                    .gyr = local_gyr,
-                    .mag = local_mag,
-                    .high_g_acc = high_g_acc,
-                    .baro = baro,
-                    .barometric_agl = barometric_agl,
-                    .barometric_velocity = barometric_velocity,
-                    .average_barometric_velocity = average_barometric_velocity,
-                    .orientation = g_orientation,
-                    .latitude = gps_data.lat,
-                    .longitude = gps_data.lon,
-                    .gps_altitude = gps_data.height,
-                    .bat_voltage = psu_read_battery_voltage(),
-                };
-                #ifdef DEBUG
-                print_flash_packet(&fp);
-                #else
-                // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
-                if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) {
-                    flash_queue_packet(&fp);
-                }
-                #endif
-            }
-        } else {
-            // this is the FS_LANDED case
-            // here we slow down and just transmit GPS coordinates
-            // here the loop rate is 2 Hz
-
-            // since the fq is just 2 Hz just poll the gps as fast as the loop goes
-            if (cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
-                GPS_read(&gps_data);
-
-                goober_payload_t locator_packet = gooberCreateTelemetry(gps_data.lat, gps_data.lon, 0, 0, 0, 0, 0, 0, 0, gps_data.numSV, flight_state);
-                queueLatestTelemetryPayload(&locator_packet);
-
-                if (!flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, &resume)) {
-                    flash_erase_next_bank_on_landed_finished = true;
-                }
-            }
+            primary_preflight(&cycle, &gps_data);
+        } 
+        
+        else if (flight_state != FS_LANDED) {
+            primary_flight(&cycle, &gps_data, &flight_state);
+        } 
+        
+        else {
+            primary_landed(&cycle, &gps_data, &flight_state, &flash_erase_next_bank_on_landed_finished, &resume);
         }
 
         // advance our cycle counter for subsampling tasks
@@ -278,6 +136,9 @@ void primary_task(void *pvParameters) {
     }
 }
 
+
+
+//MARK: - Secondary Task
 TaskHandle_t secondary_task_handle;
 int secondary_loop_fq = 20;
 TickType_t xFrequency_secondary;
@@ -293,32 +154,14 @@ void secondary_task(void *pvParameters) {
     goober_t txlock_packet;
 
     while (1) {
-        goober_payload_t telemetry_payload;
-        peekLatestTelemetryPayload(&telemetry_payload);
-
-        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            if(!is_tx_lock()) {
-                rcv = lora_blocking_listen(&rcv_packet, 21);
-                if (rcv) {
-                    rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
-                    lora_transmit_packet(&rsp_packet);
-                }
-            } else {
-                txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
-                txlock_packet.DEV_MODE = 0x08;
-                lora_transmit_packet(&txlock_packet);
-            }
-        }
-
-        if (cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            flash_write_queue(1000/secondary_loop_fq*1e3/2);
-        }
+        secondary_flight(&cycle, &rcv_packet, &rcv, &rsp_packet, &txlock_packet);
 
         cycle = (cycle + 1) % secondary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_secondary);
     }
 }
 
+//MARK: - Fusion Debug
 #ifdef FUSION_DEBUG
 TaskHandle_t fusion_debug_task_handle;
 int fusion_debug_loop_fq = 100;
@@ -370,13 +213,14 @@ void fusion_debug_task(void *pvParameters) {
 }
 #endif
 
+//MARK: - Main
 void app_main(void) {
     esp_err_t err;
     //TaskHandle_t megolavania_task_handle;
 
-#ifdef GENERAL_DEBUG
+    #ifdef GENERAL_DEBUG
     validate_esp32();
-#endif
+    #endif
     err = esp_task_wdt_deinit();
     if (err != ESP_OK) {
         #ifdef GENERAL_DEBUG
@@ -402,7 +246,8 @@ void app_main(void) {
         nvs_handle_t my_handle = nvs_interface_get_handle();
         // if this is a 1 it will write the uuid to the nvs flash
         // if it is 0 it will load the correct value from the nvs flash
-#if 0
+        //MARK: NVS UUID SET
+        #if 0
         if ((err = nvs_set_blob(my_handle, "uuid", uuid, sizeof(uuid))) != ESP_OK) {
             printf("Failed to set uuid\n");
             printf("%d\n", err);
@@ -410,7 +255,7 @@ void app_main(void) {
         }
         printf("Set UUID\n");
         esp_restart();
-#else
+        #else
         if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
             size_t length = sizeof(uuid);
             if (nvs_get_blob(my_handle, "uuid", uuid, &length) != ESP_OK) {
@@ -429,23 +274,26 @@ void app_main(void) {
 
 
     // Set origin vectors during boot sequence
-#ifndef FUSION_DEBUG
-
+    #ifndef FUSION_DEBUG
     fail_if_barometer_bad();
+    #endif
 
-#ifndef DEBUG
+    #ifndef DEBUG
     break_beep();
     battery_beep();
     break_beep();
     serial_util_init();
-#endif
+    #endif
+
+
     printf("========================\n");
     flash_print_stats();
     printf("========================\n");
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
     // if they do this it will dump all data
-#ifndef DEBUG
+
+    #ifndef DEBUG
     try_to_dump_data();
     // try to go into data dumping mode
     // this will prompt the user on SERIAL to enter the word DUMP with in 5 seconds
@@ -458,9 +306,7 @@ void app_main(void) {
 
     beep_pyro_cont();
 
-#endif
-#endif
-    // xTaskCreatePinnedToCore(meergolavania_task, "megolavania_task", 4096, NULL, 1, &megolavania_task_handle, 0);
+    #endif
 
     high_power_mode();
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -475,32 +321,33 @@ void app_main(void) {
     orientation_init_from_gravity(&g_orientation, false);
     // used to fly ascent in one way coms only or no ground station
     // this is changed in flight_config.h
-#ifdef DEBUG
+    #ifdef DEBUG
     activate_txlock();
-#endif
-#ifdef ARM_REGARDLESS_OF_TXLOCK
+    #endif
+    #ifdef ARM_REGARDLESS_OF_TXLOCK
     fake_tx_lock();
-#endif
+    #endif
 
-#ifndef IS_BOOSTER
+    #ifndef IS_BOOSTER
     pyro_activate(PYRO_CHANNEL_3, 100, 1);
-#endif
+    #endif
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
     printf("Creating tasks\n");
-#ifdef FUSION_DEBUG
+    #ifdef FUSION_DEBUG
     xFrequency_fusion_debug = pdMS_TO_TICKS(1000/fusion_debug_loop_fq);
     xTaskCreatePinnedToCore(fusion_debug_task, "fusion_debug_task", 8192, NULL, 1, &fusion_debug_task_handle, 0);
-#else
+    #else
     xTaskCreatePinnedToCore(primary_task, "primary_task", 8192, NULL, 1, &primary_task_handle, 1);
     xTaskCreatePinnedToCore(secondary_task, "secondary_task", 8192, NULL, 1, &secondary_task_handle, 0);
-#endif
+    #endif
 
     // this main will not exit here even though it looks like it will.
     // the esp will not reset until all tasks are finished
     // but since the primary and secondary tasks are both infinite loops the esp will never restart
 }
 
+//MARK: - Validate ESP32
 #ifdef GENERAL_DEBUG    
 void validate_esp32(void) {
     /* Print chip information */
@@ -544,6 +391,7 @@ void validate_esp32(void) {
 }
 #endif
 
+//MARK: - Boot Sequence
 void init_boot_sequence(void) {
     // NeoPixel
     neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
@@ -593,6 +441,7 @@ void init_boot_sequence(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
+//MARK: - Pyro Beep
 void beep_pyro_cont(void) {
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 4; j++) {
@@ -604,6 +453,15 @@ void beep_pyro_cont(void) {
     }
 }
 
+
+
+
+
+
+
+
+
+//MARK: - Update Loop Rate
 void update_loop_rate(void) {
     uint8_t flight_state = get_flight_state();
 
@@ -624,6 +482,12 @@ void update_loop_rate(void) {
     xFrequency_secondary = pdMS_TO_TICKS(1000/secondary_loop_fq);
 }
 
+
+
+
+
+
+//MARK: - Power Modes
 void low_power_mode_no_gps(void) {
     printf("Entering low power mode with out gps.\n");
 
@@ -663,4 +527,195 @@ void high_power_mode(void) {
     vTaskDelay(pdMS_TO_TICKS(1));
     
     // GPS_high_power_mode(); // THIS DOES NOT FUCKING EXIST
+}
+
+//MARK: - Primary Preflight
+void primary_preflight(uint32_t *cycle, GPS_data_t *gps_data){
+    if (*cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+        // in pre flight we still want to know that the gps works so just poll it at 1 Hz
+        GPS_read(gps_data);
+
+        uint8_t current_flight_state = get_flight_state();
+        goober_payload_t telemetry = gooberCreateTelemetry(0, 0, 0, 0, 0, 0, 0, 0, 0, gps_data->numSV, current_flight_state);
+        queueLatestTelemetryPayload(&telemetry);
+
+        // we still need to call flight_update to get out of preflight so we just call it with all zeros
+        if (flight_update(0, 0, 0, 0)) {
+            if (get_flight_state() == FS_ON_PAD) {
+                update_loop_rate();
+                high_power_mode();
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+//MARK: - Primary Flight
+void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state) {
+    // for all other states that are not preflight and landed we want to be running at full tilt running all flight tasks
+    // the loop will now be running at 50 Hz
+
+    // read the GPS at 10 Hz
+    if (*cycle % (uint32_t)(primary_loop_fq/10) == 0) {
+        GPS_read(gps_data);
+        // runtime[0] = esp_timer_get_time() - start_time;
+        // dt[0] = runtime[0];
+    }
+
+    // read all sensors and send data to secondary task
+    if (*cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+        imu_local_3d_t local_acc, local_gyr, local_mag;
+        imu_float_3d_t high_g_acc;
+        //dcs_3d_t body_relative_dcs;
+        baro_double_t baro;
+
+        // bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+        #ifdef IS_SITL
+        bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
+        local_acc.x = get_current_vertical_accl();
+        printf("Serial: %f\n", local_acc.x);
+        #else
+        bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
+        #endif
+
+        h3lis331dl_get_local(&high_g_acc, true);
+
+        // bmp390_get_local(&baro);
+        #ifdef IS_SITL
+        baro.alt = get_current_baro_alt();
+        #else
+        bmp390_get_local(&baro);
+        #endif
+        
+        //printf("orient: %f \t %f \t %f\n", g_orientation.yaw, g_orientation.pitch, g_orientation.roll);
+        
+        sensor_filter_acc(&local_acc, *flight_state);
+        sensor_filter_gyr(&local_gyr, *flight_state);
+        sensor_filter_mag(&local_mag, *flight_state);
+        sensor_filter_high_g_acc(&high_g_acc, *flight_state);
+        // runtime[2] = esp_timer_get_time() - start_time;
+        // dt[2] = runtime[2]-runtime[1];
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
+            xSemaphoreGive(g_orientation_mutex);
+        } else {
+            orientation_update_from_euler_rates(&g_orientation, &local_gyr);
+            orientation_sync_euler_from_quat(&g_orientation);
+        }
+        // runtime[3] = esp_timer_get_time() - start_time;
+        // dt[3] = runtime[3]-runtime[2];
+        float barometric_agl;
+        float barometric_velocity;
+        float average_barometric_velocity;
+        baro_update(&baro, &barometric_agl, &barometric_velocity, &average_barometric_velocity);
+        // runtime[4] = esp_timer_get_time() - start_time;
+        // dt[4] = runtime[4]-runtime[3];
+        // float phi = 0;
+        if (flight_update(barometric_agl, barometric_velocity, average_barometric_velocity, local_acc.x)) {
+            // if the flight state changes we may need to update the loop rates
+            // the loop rates will only change if we go into landed
+            update_loop_rate();
+
+            if (get_flight_state() == FS_PREFLIGHT) {
+                low_power_mode_no_gps();
+            }
+
+            // if we just went into landed power down everything except GPS
+            if (get_flight_state() == FS_LANDED) {
+                low_power_mode_no_gps();
+                turn_off_cameras();
+                turn_off_fan();
+            }
+        }
+        // runtime[5] = esp_timer_get_time() - start_time;
+        // dt[5] = runtime[5]-runtime[4];
+        // always queue up latest telemetry for secondary task
+        float yaw = 0, pitch = 0, roll = 0;
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+            yaw = g_orientation.yaw;
+            pitch = g_orientation.pitch;
+            roll = g_orientation.roll;
+            xSemaphoreGive(g_orientation_mutex);
+        }
+        goober_payload_t telemetry = gooberCreateTelemetry(gps_data->lat, gps_data->lon, barometric_agl, average_barometric_velocity, local_acc.x, yaw, pitch, roll, local_gyr.x, gps_data->numSV, *flight_state);
+        queueLatestTelemetryPayload(&telemetry);
+
+        flash_packet fp = {
+            .n = 0,
+            .timestamp = esp_timer_get_time(),
+            .pyro_arm = calc_pyro_arm(),
+            .flight_state = *flight_state,
+            .acc = local_acc,
+            .gyr = local_gyr,
+            .mag = local_mag,
+            .high_g_acc = high_g_acc,
+            .baro = baro,
+            .barometric_agl = barometric_agl,
+            .barometric_velocity = barometric_velocity,
+            .average_barometric_velocity = average_barometric_velocity,
+            .orientation = g_orientation,
+            .latitude = gps_data->lat,
+            .longitude = gps_data->lon,
+            .gps_altitude = gps_data->height,
+            .bat_voltage = psu_read_battery_voltage(),
+        };
+        #ifdef DEBUG
+        print_flash_packet(&fp);
+        #else
+        // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
+        if (is_tx_lock() && *flight_state != FS_ON_PAD && *flight_state != FS_LANDED) {
+            flash_queue_packet(&fp);
+        }
+        #endif
+    }
+}
+
+//MARK: - Primary Landed
+void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state, bool *flash_erase_next_bank_on_landed_finished, int32_t *resume) {
+    // this is the FS_LANDED case
+    // here we slow down and just transmit GPS coordinates
+    // here the loop rate is 2 Hz
+
+    // since the fq is just 2 Hz just poll the gps as fast as the loop goes
+    if (*cycle % (uint32_t)(primary_loop_fq/primary_loop_fq) == 0) {
+        GPS_read(gps_data);
+
+        goober_payload_t locator_packet = gooberCreateTelemetry(gps_data->lat, gps_data->lon, 0, 0, 0, 0, 0, 0, 0, gps_data->numSV, *flight_state);
+        queueLatestTelemetryPayload(&locator_packet);
+
+        if (!*flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, resume)) {
+            *flash_erase_next_bank_on_landed_finished = true;
+        }
+    }
+}
+
+//MARK: - Secondary Flight
+void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t *rsp_packet, goober_t *txlock_packet) {
+    goober_payload_t telemetry_payload;
+        peekLatestTelemetryPayload(&telemetry_payload);
+
+        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+            if(!is_tx_lock()) {
+                *rcv = lora_blocking_listen(rcv_packet, 21);
+                if (rcv) {
+                    *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
+                    lora_transmit_packet(rsp_packet);
+                }
+            } else {
+                *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
+                txlock_packet->DEV_MODE = 0x08;
+                lora_transmit_packet(txlock_packet);
+            }
+        }
+
+        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+            flash_write_queue(1000/secondary_loop_fq*1e3/2);
+        }
 }
