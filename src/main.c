@@ -94,7 +94,7 @@ static tNeopixelContext neopixel;
 
 //MARK: - Primary Task
 TaskHandle_t primary_task_handle;
-int primary_loop_fq = 50;
+int primary_loop_fq = 100;
 TickType_t xFrequency_primary;
 void primary_task(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -474,7 +474,7 @@ void update_loop_rate(void) {
             break;
 
         default:
-            primary_loop_fq = 50;
+            primary_loop_fq = 100;
             secondary_loop_fq = 20;
             break;        
     }
@@ -563,7 +563,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
     // the loop will now be running at 50 Hz
 
     // read the GPS at 10 Hz
-    if (*cycle % (uint32_t)(primary_loop_fq/10) == 0) {
+    if (*cycle % (uint32_t)(primary_loop_fq/20) == 0) {
         GPS_read(gps_data);
         // runtime[0] = esp_timer_get_time() - start_time;
         // dt[0] = runtime[0];
@@ -689,8 +689,9 @@ void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         goober_payload_t locator_packet = gooberCreateTelemetry(gps_data->lat, gps_data->lon, 0, 0, 0, 0, 0, 0, 0, gps_data->numSV, *flight_state);
         queueLatestTelemetryPayload(&locator_packet);
 
-        if (!*flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/2, resume)) {
+        if (!*flash_erase_next_bank_on_landed_finished && flash_erase_next_bank_no_advance(1000/primary_loop_fq*1e3/4, resume)) {
             *flash_erase_next_bank_on_landed_finished = true;
+            flash_erase_jingle();
         }
     }
 }
@@ -717,6 +718,6 @@ void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t 
     }
 
     if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-        if (flight_state > FS_ON_PAD && flight_state != FS_LANDED) flash_write_queue(1000/secondary_loop_fq*1e3/2);
+        if (flight_state < FS_LANDED) flash_write_queue(1000/secondary_loop_fq*1e3/2);
     }
 }
