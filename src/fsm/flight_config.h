@@ -3,7 +3,9 @@
 
 #include "stdbool.h"
 
+//Dont commit w/ IS_SITL defined
 // #define IS_SITL
+
 
 // Note all values are in m or m/s
 
