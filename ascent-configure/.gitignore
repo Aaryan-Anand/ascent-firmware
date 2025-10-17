@@ -2,3 +2,4 @@
 .vscode
 sdkconfig.esp32-s3-devkitc-1
 build/*
+main.h
