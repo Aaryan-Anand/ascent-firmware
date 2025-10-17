@@ -671,9 +671,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         print_flash_packet(&fp);
         #else
         // if the board is armed, and we are not sitting on the ground before or after flight we record data to the flash
-        if (is_tx_lock() && *flight_state != FS_ON_PAD && *flight_state != FS_LANDED) {
-            flash_queue_packet(&fp);
-        }
+        flash_queue_packet(&fp);
         #endif
     }
 }
@@ -700,23 +698,25 @@ void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
 //MARK: - Secondary Flight
 void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t *rsp_packet, goober_t *txlock_packet) {
     goober_payload_t telemetry_payload;
-        peekLatestTelemetryPayload(&telemetry_payload);
+    peekLatestTelemetryPayload(&telemetry_payload);
 
-        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            if(!is_tx_lock()) {
-                *rcv = lora_blocking_listen(rcv_packet, 21);
-                if (rcv) {
-                    *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
-                    lora_transmit_packet(rsp_packet);
-                }
-            } else {
-                *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
-                txlock_packet->DEV_MODE = 0x08;
-                lora_transmit_packet(txlock_packet);
+    uint8_t flight_state = telemetry_payload.telemetry.flight_state;
+
+    if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+        if(!is_tx_lock()) {
+            *rcv = lora_blocking_listen(rcv_packet, 21);
+            if (rcv) {
+                *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
+                lora_transmit_packet(rsp_packet);
             }
+        } else {
+            *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
+            txlock_packet->DEV_MODE = 0x08;
+            lora_transmit_packet(txlock_packet);
         }
+    }
 
-        if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-            flash_write_queue(1000/secondary_loop_fq*1e3/2);
-        }
+    if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
+        if (is_tx_lock() && flight_state != FS_ON_PAD && flight_state != FS_LANDED) flash_write_queue(1000/secondary_loop_fq*1e3/2);
+    }
 }
