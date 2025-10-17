@@ -710,7 +710,7 @@ void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t 
                 lora_transmit_packet(rsp_packet);
             }
         } else {
-            *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, 32, &telemetry_payload);
+            *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, sizeof(goober_post_telemetry_payload_t), &telemetry_payload);
             txlock_packet->DEV_MODE = 0x08;
             lora_transmit_packet(txlock_packet);
         }
