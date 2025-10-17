@@ -80,7 +80,7 @@ static tNeopixelContext neopixel;
 // #define GENERAL_DEBUG
 // #define ARM_REGARDLESS_OF_TXLOCK
 //#define FUSION_DEBUG
-#define DEBUG
+//#define DEBUG
 
 
 
