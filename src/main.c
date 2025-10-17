@@ -602,7 +602,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         sensor_filter_high_g_acc(&high_g_acc, *flight_state);
         // runtime[2] = esp_timer_get_time() - start_time;
         // dt[2] = runtime[2]-runtime[1];
-        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(1))) {
             orientation_update_from_euler_rates(&g_orientation, &local_gyr);
             orientation_sync_euler_from_quat(&g_orientation);
             xSemaphoreGive(g_orientation_mutex);
@@ -639,7 +639,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         // dt[5] = runtime[5]-runtime[4];
         // always queue up latest telemetry for secondary task
         float yaw = 0, pitch = 0, roll = 0;
-        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(5))) {
+        if (g_orientation_mutex && xSemaphoreTake(g_orientation_mutex, pdMS_TO_TICKS(1))) {
             yaw = g_orientation.yaw;
             pitch = g_orientation.pitch;
             roll = g_orientation.roll;
