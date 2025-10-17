@@ -18,5 +18,7 @@ esp_err_t lora_flight_init();
 void lora_transmit_packet(goober_t *packet);
 
 int lora_blocking_listen(goober_t *received_packet, uint8_t timeout);
+
+uint8_t calc_pyro_arm(void);
             
 #endif
