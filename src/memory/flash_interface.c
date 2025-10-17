@@ -194,6 +194,7 @@ void flash_dump_to_serial(int bank) {
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     addr = BANK_SIZE*bank;
+    printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
     while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
         w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
@@ -332,7 +333,6 @@ void try_to_dump_data() {
     int i = 0;
     while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
         if (strcmp("DUMP", buf) == 0) {
-            printf("n,timestamp,pyro_arm,flight_state,acc_x,acc_y,acc_z,gyr_x,gyr_y,gyr_z,mag_x,mag_y,mag_z,high_g_acc_x,high_g_acc_y,high_g_acc_z,baro_alt,baro_pressure,baro_temperature,barometric_agl,barometric_velocity,average_barometric_velocity,yaw,pitch,roll,lat,long,gps_alt,volt\n");
             while (true) {
                 printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
                 while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
