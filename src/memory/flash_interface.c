@@ -270,14 +270,14 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     packet->n = n++;
-    if (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+    if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
         // vTaskDelay(pdMS_TO_TICKS(1)); 
         // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
 
         flash_packet oldItem;
-        xQueueReceive(flash_packet_queue, &oldItem, pdMS_TO_TICKS(MUTEX_TIMEOUT));
+        xQueueReceive(flash_packet_queue, &oldItem, 0);
         
-        if (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+        if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
             // vTaskDelay(pdMS_TO_TICKS(1)); 
             printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
         }
