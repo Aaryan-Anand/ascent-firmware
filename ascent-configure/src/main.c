@@ -1,3 +1,6 @@
+#include "main.h"
+
+#ifndef MAIN_H
 #include "nvs_interface.h"
 #include "esp_err.h"
 #include "esp_system.h"
@@ -11,8 +14,6 @@
 #include "driver_buzzer.h"
 #include "ascent_r2_hardware_definition.h"
 #include "spi_manager.h"
-
-//0x6, 0x1, 0x7, 0x2, 0x6, 0xe, 0x7, 0x4, 0x7, 0x2 hex to asci is asntr followed by it's uuid
 
 uint8_t uuid[16] = { 0x4, 0x1, 0x7, 0x3, 0x6, 0xe, 0x7, 0x4, 0x5, 0x2, 0x2, 0x0, 0x3, 0x0, 0x0, 0x0 };
 
@@ -39,12 +40,11 @@ static float high_g_correction_matrix[3][3] = {
     {0.0f, 0.0f, 1.0f}
 };
 
-// Bias vectors initialized to zero
 static float acc_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 static float gyr_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 static float mag_bias_vector[3] = {0.0f, 0.0f, 0.0f};
 static float high_g_bias_vector[3] = {0.0f, 0.0f, 0.0f};
-
+#endif
 
 void set_uuid(void) {
     printf("Setting UUID\n");
