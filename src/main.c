@@ -104,6 +104,10 @@ void primary_task(void *pvParameters) {
     bool flash_erase_next_bank_on_landed_finished = false;
 
     while (1) {
+#ifdef IS_SITL
+        sitl_update();
+#endif
+
         uint8_t flight_state = get_flight_state();
         // uint64_t start_time = esp_timer_get_time();
 
