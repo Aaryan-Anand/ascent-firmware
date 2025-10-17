@@ -91,4 +91,6 @@ void baro_update(const baro_double_t * const baro, float *agl, float *vel, float
 
 void calibrate_gyr_bias_5s(void);
 
+void fail_if_barometer_bad(void);
+
 #endif // SENSOR_MANAGER_H

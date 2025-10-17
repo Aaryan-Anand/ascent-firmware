@@ -420,3 +420,21 @@ void calibrate_gyr_bias_5s(void)
     printf("Gyro bias updated (deg/s): bx=%f by=%f bz=%f (N=%u)\n",
            gyr_bias_vector[0], gyr_bias_vector[1], gyr_bias_vector[2], (unsigned)n);
 }
+
+void fail_if_barometer_bad() {
+    const int n = 100;
+    for (int i = 0; i < n; i++) {
+        baro_double_t baro_out;
+        bmp390_get_local(&baro_out);
+        #ifdef BARO_TEST
+            printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #endif
+        if (baro_out.pressure <= 0) {
+            while (true) {
+                error_beep();
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}

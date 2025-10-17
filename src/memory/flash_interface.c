@@ -309,3 +309,50 @@ void flash_blank_slate() {
         nvs_set_i32(my_handle, bank_keys[i], 0);
     }
 }
+
+void try_to_dump_data() {
+    printf("You have 5 seconds to enter \"DUMP\" to enter data dumping mode\n");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    char buf[512];
+    int i = 0;
+    while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+        if (strcmp("DUMP", buf) == 0) {
+            while (true) {
+                printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
+                while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                    int bank = atoi(buf);
+                    flash_dump_to_serial(bank);
+                    for (int j = 0; j < 3; j++) {
+                        flash_erase_jingle();
+                        vTaskDelay(pdMS_TO_TICKS(500));
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+void print_flash_packet(flash_packet *fp) {
+    printf("fp:\t");
+    printf("n: %"PRId32"\t", fp->n);
+    printf("ts: %"PRId64"\t", fp->timestamp);
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
+    printf("fs: %d\t", fp->flight_state);
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
+    printf("agl: %f.2\t", fp->barometric_agl);
+    printf("vel: %f.2\t", fp->barometric_velocity);
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
+    printf("yaw: %f.2\t", fp->orientation.yaw);
+    printf("pitch: %f.2\t", fp->orientation.pitch);
+    printf("roll: %f.2\t", fp->orientation.roll);
+    printf("lat: %f\t", fp->latitude);
+    printf("long: %f\t", fp->longitude);
+    printf("gps_alt: %lu\t", fp->gps_altitude);
+    printf("volt: %f.2\t", fp->bat_voltage);
+    printf("\n");
+}
