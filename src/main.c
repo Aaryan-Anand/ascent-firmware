@@ -246,12 +246,6 @@ void app_main(void) {
     fail_if_barometer_bad();
     #endif
 
-    #ifndef DEBUG
-    break_beep();
-    battery_beep();
-    break_beep();
-    serial_util_init();
-    #endif
 
 
     printf("========================\n");
@@ -383,6 +377,22 @@ void init_boot_sequence(void) {
     sensor_manager_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
+    
+    pyro_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    psu_init_default();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+
+    #ifndef DEBUG
+    break_beep();
+    battery_beep();
+    break_beep();
+    serial_util_init();
+    #endif
+
+
     bmp_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -399,11 +409,6 @@ void init_boot_sequence(void) {
     lora_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    pyro_init();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-
-    psu_init_default();
-    vTaskDelay(10 / portTICK_PERIOD_MS);
 
     flash_flight_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
