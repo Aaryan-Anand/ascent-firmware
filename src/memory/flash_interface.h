@@ -52,4 +52,10 @@ void flash_print_stats();
 
 void flash_blank_slate();
 
+void try_to_dump_data();
+
+void flash_erase_jingle(void);
+
+void print_flash_packet(flash_packet *fp);
+
 #endif

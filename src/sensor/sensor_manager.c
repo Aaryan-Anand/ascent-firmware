@@ -9,6 +9,7 @@
 #include "freertos/semphr.h"
 #include "esp_timer.h"
 #include "nvs_interface.h"
+#include "beep.h"
 
 double groundPressure, groundTemperature, groundAlt;
 uint8_t num_readings = 30;
@@ -86,58 +87,7 @@ static nvs_handle_t my_handle;
 void sensor_manager_init() {
     my_handle = nvs_interface_get_handle();
 
-    // if this 0 is changed to a 1 the matrices in the code above will be loaded
-    // to the nvs flash, if it is 0 then the matrices from the flash will be
-    // written to those variables
-#if 0
-    // mats
-    esp_err_t err;
-    if ((err = nvs_set_blob(my_handle, "acc_mat", acc_correction_matrix, sizeof(acc_correction_matrix))) != ESP_OK) {
-        printf("Failed to set acc_correction_matrix\n");
-        printf("%d\n", err);
-        esp_restart();
-    }
 
-    if (nvs_set_blob(my_handle, "gyr_mat", gyr_correction_matrix, sizeof(gyr_correction_matrix)) != ESP_OK) {
-        printf("Failed to set gyr_correction_matrix\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "mag_mat", mag_correction_matrix, sizeof(mag_correction_matrix)) != ESP_OK) {
-        printf("Failed to set mag_correction_matrix\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "high_g_mat", high_g_correction_matrix, sizeof(high_g_correction_matrix)) != ESP_OK) {
-        printf("Failed to set high_g_correction_matrix\n");
-        esp_restart();
-    }
-
-
-    // vectors
-    if (nvs_set_blob(my_handle, "acc_vec", acc_bias_vector, sizeof(acc_bias_vector)) != ESP_OK) {
-        printf("Failed to set acc_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "gyr_vec", gyr_bias_vector, sizeof(gyr_bias_vector)) != ESP_OK) {
-        printf("Failed to set gyr_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "mag_vec", mag_bias_vector, sizeof(mag_bias_vector)) != ESP_OK) {
-        printf("Failed to set mag_bias_vector\n");
-        esp_restart();
-    }
-
-    if (nvs_set_blob(my_handle, "high_g_vec", high_g_bias_vector, sizeof(high_g_bias_vector)) != ESP_OK) {
-        printf("Failed to set high_g_bias_vector\n");
-        esp_restart();
-    }
-
-    printf("biases and mats written\n");
-    esp_restart();
-#else
     size_t length = sizeof(acc_correction_matrix);
 
     // mats
@@ -231,9 +181,6 @@ void sensor_manager_init() {
     print_vec_3(gyr_bias_vector);
     print_vec_3(mag_bias_vector);
     print_vec_3(high_g_bias_vector);
-
-#endif
-
 }
 
 void bmp_aquire_ground() {
@@ -284,15 +231,22 @@ void bno_flight_init(){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_configure_acc(NORMAL, ACC_C_H1000, ACC_C_RANGE_16G);  //Normal power, 1kHz ODR, 16G range
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_set_acc_int(true, true, true, true, true, true, 2); // HG on X/Y/Z
+    bno_set_acc_int(false, false, false, false, false, false, 2); // HG on X/Y/Z
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_setinterruptenable(false, true, false, false, false, false, false, false);
+    bno_setinterruptenable(false, false, false, false, false, false, false, false);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_setinterruptmask(false, true, false, false, false, false, false, false);
+    bno_setinterruptmask(false, false, false, false, false, false, false, false);
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_set_acc_hgtresh(187);
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-    bno_set_acc_hgduration(10);
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
+    // bno_set_acc_int(true, true, true, true, true, true, 2); // HG on X/Y/Z
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
+    // bno_setinterruptenable(false, true, false, false, false, false, false, false);
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
+    // bno_setinterruptmask(false, true, false, false, false, false, false, false);
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
+    // bno_set_acc_hgtresh(187);
+    // vTaskDelay(10 / portTICK_PERIOD_MS);
+    // bno_set_acc_hgduration(10);
     vTaskDelay(10 / portTICK_PERIOD_MS);
     bno_setoprmode(AMG);
 
@@ -317,19 +271,19 @@ void lis331_flight_init(){
     h3lis331dl_set_endian(H3LIS331DL_BIG_ENDIAN);
 
     //high-side int detection
-    uint8_t enables_mask = (1 << 1) | (1 << 3); //XHIE and YHIE
-    h3lis331dl_set_int_cfg(H3LIS331DL_INT1, enables_mask, false);//OR mode
+    // uint8_t enables_mask = (1 << 1) | (1 << 3); //XHIE and YHIE
+    // h3lis331dl_set_int_cfg(H3LIS331DL_INT1, enables_mask, false);//OR mode
 
-    //Threshold: 2.828g (Net 4G with gravity -> 3g power acceleration)
-    h3lis331dl_set_int_threshold(H3LIS331DL_INT1, 2.828);
+    // //Threshold: 2.828g (Net 4G with gravity -> 3g power acceleration)
+    // h3lis331dl_set_int_threshold(H3LIS331DL_INT1, 2.828);
 
-    // Duration: 5 → 5ms @ 1000Hz
-    h3lis331dl_set_int_duration(H3LIS331DL_INT1, 5);
+    // // Duration: 5 → 5ms @ 1000Hz
+    // h3lis331dl_set_int_duration(H3LIS331DL_INT1, 5);
 
-    // Optional cleanup
-    h3lis331dl_set_int_level(H3LIS331DL_INT_ACTIVE_LOW);
-    h3lis331dl_set_int_pin_mode(H3LIS331DL_INT_PUSH_PULL);
-    h3lis331dl_set_int1_latch(true);
+    // // Optional cleanup
+    // h3lis331dl_set_int_level(H3LIS331DL_INT_ACTIVE_LOW);
+    // h3lis331dl_set_int_pin_mode(H3LIS331DL_INT_PUSH_PULL);
+    // h3lis331dl_set_int1_latch(true);
 }
 
 
@@ -419,4 +373,22 @@ void calibrate_gyr_bias_5s(void)
 
     printf("Gyro bias updated (deg/s): bx=%f by=%f bz=%f (N=%u)\n",
            gyr_bias_vector[0], gyr_bias_vector[1], gyr_bias_vector[2], (unsigned)n);
+}
+
+void fail_if_barometer_bad() {
+    const int n = 100;
+    for (int i = 0; i < n; i++) {
+        baro_double_t baro_out;
+        bmp390_get_local(&baro_out);
+        #ifdef BARO_TEST
+            printf("Baro test (%d/%d): pressure: %f, temp: %f, alt: %f\n", i+1, n, baro_out.pressure, baro_out.temperature, baro_out.alt);
+        #endif
+        if (baro_out.pressure <= 0) {
+            while (true) {
+                error_beep();
+                vTaskDelay(500 / portTICK_PERIOD_MS);
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
 }

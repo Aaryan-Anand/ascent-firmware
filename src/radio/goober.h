@@ -95,6 +95,13 @@ bool is_tx_lock();
 
 bool should_wake_up();
 
+void turn_off_cameras(void);
+void turn_off_fan(void);
+void fake_tx_lock(void);
+void turn_on_cameras(void);
+void turn_on_fan(void);
+            
+
 void activate_txlock();
 
 #endif

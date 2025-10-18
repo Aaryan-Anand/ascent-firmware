@@ -12,10 +12,15 @@
 #include <rom/ets_sys.h>
 #include "beep.h"
 
+#include "serial_util.h"
+
 #include "nvs_flash.h"
 #include "nvs.h"
 
 #include "nvs_interface.h"
+
+#include "beep.h"
+#include "driver_buzzer.h"
 
 #define MAX_SECTORS 16384
 #define SECTOR_SIZE 4096
@@ -140,6 +145,7 @@ bool flash_prepare_for_flight(void) {
     nvs_set_i32(my_handle, "bank", current_bank);
     printf("Ready to fly using bank: %ld\n", current_bank);
 
+	flash_erase_jingle();
     return true;
 }
 
@@ -188,6 +194,7 @@ void flash_dump_to_serial(int bank) {
     vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     addr = BANK_SIZE*bank;
+    printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
     while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
         w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
@@ -263,9 +270,18 @@ void flash_write_packet(flash_packet *packet) {
 
 void flash_queue_packet(flash_packet *packet) {
     packet->n = n++;
-    if (xQueueSendToBack(flash_packet_queue, packet, pdMS_TO_TICKS(MUTEX_TIMEOUT)) != pdTRUE) {
+    if (xQueueSendToBack(flash_packet_queue, packet, 0) != pdTRUE) {
         // vTaskDelay(pdMS_TO_TICKS(1)); 
-        printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
+        // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
+
+        flash_packet oldItem;
+        xQueueReceive(flash_packet_queue, &oldItem, 0);
+        
+        if (xQueueSendToBack(flash_packet_queue, packet, 1) != pdTRUE) {
+            // vTaskDelay(pdMS_TO_TICKS(1)); 
+            printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
+        }
+        // printf("QUEUE OVER RUN, FLASH PACKET LOST\n");
     }
 }
 
@@ -308,4 +324,59 @@ void flash_blank_slate() {
     for (int i = 0; i < BANKS; i++) {
         nvs_set_i32(my_handle, bank_keys[i], 0);
     }
+}
+
+void try_to_dump_data() {
+    printf("You have 5 seconds to enter \"DUMP\" to enter data dumping mode\n");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+    char buf[512];
+    int i = 0;
+    while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+        if (strcmp("DUMP", buf) == 0) {
+            while (true) {
+                printf("Enter the bank to dump (last bank used: %ld):\n", flash_get_last_used_bank());
+                while (serial_util_readline_nonblocking(buf, 512, &i, 1000/portTICK_PERIOD_MS)) {
+                    int bank = atoi(buf);
+                    flash_dump_to_serial(bank);
+                    for (int j = 0; j < 3; j++) {
+                        flash_erase_jingle();
+                        vTaskDelay(pdMS_TO_TICKS(500));
+                    }
+                }
+            }
+        }
+    }
+}
+
+void flash_erase_jingle(void) {
+    note(NOTE_E, 8, 120);
+    note(NOTE_G, 8, 120);
+    note(NOTE_C, 7, 200);
+    note(NOTE_D, 7, 120);
+    note(NOTE_B, 6, 250);
+    note(NOTE_E, 7, 400);
+}
+
+void print_flash_packet(flash_packet *fp) {
+    printf("fp:\t");
+    printf("n: %"PRId32"\t", fp->n);
+    printf("ts: %"PRId64"\t", fp->timestamp);
+    printf("pa: %d%d%d%d\t", (fp->pyro_arm >> 3) & 1,(fp->pyro_arm >> 2) & 1,(fp->pyro_arm >> 1) & 1,(fp->pyro_arm >> 0) & 1);
+    printf("fs: %d\t", fp->flight_state);
+    printf("acc: %f.2, %f.2, %f.2\t", fp->acc.x, fp->acc.y, fp->acc.z);
+    printf("gyr: %f.2, %f.2, %f.2\t", fp->gyr.x, fp->gyr.y, fp->gyr.z);
+    printf("mag: %f.2, %f.2, %f.2\t", fp->mag.x, fp->mag.y, fp->mag.z);
+    printf("high_g: %f.2, %f.2, %f.2\t", fp->high_g_acc.x, fp->high_g_acc.y, fp->high_g_acc.z);
+    printf("baro: %f.2, %f.2, %f.2\t", fp->baro.alt, fp->baro.pressure, fp->baro.temperature);
+    printf("agl: %f.2\t", fp->barometric_agl);
+    printf("vel: %f.2\t", fp->barometric_velocity);
+    printf("avg_vel: %f.2\t", fp->average_barometric_velocity);
+    printf("yaw: %f.2\t", fp->orientation.yaw);
+    printf("pitch: %f.2\t", fp->orientation.pitch);
+    printf("roll: %f.2\t", fp->orientation.roll);
+    printf("lat: %f\t", fp->latitude);
+    printf("long: %f\t", fp->longitude);
+    printf("gps_alt: %lu\t", fp->gps_altitude);
+    printf("volt: %f.2\t", fp->bat_voltage);
+    printf("\n");
 }
