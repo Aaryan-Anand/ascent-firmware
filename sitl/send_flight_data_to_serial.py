@@ -32,11 +32,15 @@ def now(): return time()-st
 i = 0
 
 def advance_i():
-    global i
-    while rows[i][T] < now(): i += 1
-    i -= 1
+    try:
+        global i
+        while rows[i][T] < now(): i += 1
+        i -= 1
+    except IndexError:
+        while(True):
+            sleep(1)
 
-ser = serial.Serial(sys.argv[1], timeout=0.01, baudrate=9600)
+ser = serial.Serial(sys.argv[1], timeout=0.01, baudrate=5000000)
 print("sending data to", ser.name)
 
 while i < len(rows)-1:
@@ -58,5 +62,3 @@ while i < len(rows)-1:
     sleep(0.01)
 
     advance_i()
-
-ser.close()

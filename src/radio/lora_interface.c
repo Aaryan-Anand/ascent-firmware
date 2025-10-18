@@ -10,6 +10,7 @@
 #include "lora_interface.h"
 #include "flash_interface.h"
 #include "stdatomic.h"
+#include "driver_pyro.h"
 
 #include "goober.h"
 
@@ -115,4 +116,14 @@ int lora_blocking_listen(goober_t *packet, uint8_t timeout){
 	}
 
 	return received;
+}
+
+uint8_t calc_pyro_arm(void) {
+    uint8_t pyro_arm = 0;
+    if (pyro_continuity(PYRO_CHANNEL_1)) pyro_arm |= (1);
+    if (pyro_continuity(PYRO_CHANNEL_2)) pyro_arm |= (1 << 1);
+    if (pyro_continuity(PYRO_CHANNEL_3)) pyro_arm |= (1 << 2);
+    if (pyro_continuity(PYRO_CHANNEL_4)) pyro_arm |= (1 << 3);
+
+    return pyro_arm;
 }
