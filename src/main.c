@@ -718,6 +718,6 @@ void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t 
     }
 
     if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-        if (flight_state < FS_LANDED) flash_write_queue(1000/secondary_loop_fq*1e3/2);
+        if (flight_state != FS_LANDED && flight_state != FS_PREFLIGHT) flash_write_queue(1000/secondary_loop_fq*1e3/2);
     }
 }
