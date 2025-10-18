@@ -94,7 +94,7 @@ static tNeopixelContext neopixel;
 
 //MARK: - Primary Task
 TaskHandle_t primary_task_handle;
-int primary_loop_fq = 100;
+int primary_loop_fq = 50;
 TickType_t xFrequency_primary;
 void primary_task(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -474,7 +474,7 @@ void update_loop_rate(void) {
             break;
 
         default:
-            primary_loop_fq = 100;
+            primary_loop_fq = 50;
             secondary_loop_fq = 20;
             break;        
     }
@@ -563,7 +563,7 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
     // the loop will now be running at 50 Hz
 
     // read the GPS at 10 Hz
-    if (*cycle % (uint32_t)(primary_loop_fq/20) == 0) {
+    if (*cycle % (uint32_t)(primary_loop_fq/10) == 0) {
         GPS_read(gps_data);
         // runtime[0] = esp_timer_get_time() - start_time;
         // dt[0] = runtime[0];
@@ -718,6 +718,6 @@ void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t 
     }
 
     if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
-        if (flight_state != FS_LANDED && flight_state != FS_PREFLIGHT) flash_write_queue(1000/secondary_loop_fq*1e3/2);
+        if (flight_state != FS_LANDED && flight_state != FS_PREFLIGHT) flash_write_queue(1000/secondary_loop_fq*1e3/4);
     }
 }
