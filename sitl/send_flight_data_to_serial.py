@@ -40,7 +40,7 @@ def advance_i():
         while(True):
             sleep(1)
 
-ser = serial.Serial(sys.argv[1], timeout=0.01, baudrate=9600)
+ser = serial.Serial(sys.argv[1], timeout=0.01, baudrate=5000000)
 print("sending data to", ser.name)
 
 while i < len(rows)-1:
