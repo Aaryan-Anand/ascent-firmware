@@ -7,7 +7,7 @@
 #include "goober.h"
 #define LORA_FREQ 920e6
 
-#define LORA_DEBUG
+// #define LORA_DEBUG
 
 void queueLatestTelemetryPayload(goober_payload_t *payload);
 
