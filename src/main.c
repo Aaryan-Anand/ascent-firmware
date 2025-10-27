@@ -147,14 +147,8 @@ void secondary_task(void *pvParameters) {
 
     uint32_t cycle = 0;
 
-    int rcv;
-    goober_t rcv_packet;
-    goober_t rsp_packet;
-
-    goober_t txlock_packet;
-
     while (1) {
-        secondary_flight(&cycle, &rcv_packet, &rcv, &rsp_packet, &txlock_packet);
+        secondary_flight(&cycle);
 
         cycle = (cycle + 1) % secondary_loop_fq;
         vTaskDelayUntil(&xLastWakeTime, xFrequency_secondary);
@@ -702,23 +696,29 @@ void primary_landed(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
 }
 
 //MARK: - Secondary Flight
-void secondary_flight(uint32_t *cycle, goober_t *rcv_packet, int *rcv, goober_t *rsp_packet, goober_t *txlock_packet) {
+void secondary_flight(uint32_t *cycle) {
     goober_payload_t telemetry_payload;
-    peekLatestTelemetryPayload(&telemetry_payload);
+    peekLatestTelemetryPayload(&telemetry_payload); // get the latest telemetry payload
 
-    uint8_t flight_state = telemetry_payload.telemetry.flight_state;
+    int rcv = 0;
+    goober_t rcv_packet;
+    goober_t rsp_packet;
+
+    goober_t txlock_packet;
+
+    uint8_t flight_state = telemetry_payload.telemetry.flight_state; // pull the latest flight flight state
 
     if (*cycle % (uint32_t)(secondary_loop_fq/secondary_loop_fq) == 0) {
         if(!is_tx_lock()) {
-            *rcv = lora_blocking_listen(rcv_packet, 21);
+            rcv = lora_blocking_listen(&rcv_packet, 21);
             if (rcv) {
-                *rsp_packet = gooberSlaveResponse(*rcv_packet, telemetry_payload);
-                lora_transmit_packet(rsp_packet);
+                rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
+                lora_transmit_packet(&rsp_packet);
             }
         } else {
-            *txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, sizeof(goober_post_telemetry_payload_t), &telemetry_payload);
-            txlock_packet->DEV_MODE = 0x08;
-            lora_transmit_packet(txlock_packet);
+            txlock_packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, sizeof(goober_post_telemetry_payload_t), &telemetry_payload);
+            txlock_packet.DEV_MODE = 0x08;
+            lora_transmit_packet(&txlock_packet);
         }
     }
 

@@ -14,8 +14,6 @@
 
 #include "goober.h"
 
-// #define LORA_DEBUG
-
 // Telemetry payload queue -- Always have the latest telemetry payload on hand
 
 QueueHandle_t telemetryPayloadQueue;
@@ -104,6 +102,13 @@ int lora_blocking_listen(goober_t *packet, uint8_t timeout){
 		lora_receive();
 		if (lora_received()) {
 			rxLen = lora_receive_packet(lora_rx_buf, sizeof(lora_rx_buf));
+			#ifdef LORA_DEBUG
+			printf("received packet of length %d\n", rxLen);
+			for (int i = 0; i < rxLen; i++) {	
+				printf("%02X ", lora_rx_buf[i]);
+			}
+			printf("\n");
+			#endif
 			if (rxLen > 5) { // this could be substited for better logic to avoid wasting time on non-goober packets - abdul
 				received = 1;
 			}
