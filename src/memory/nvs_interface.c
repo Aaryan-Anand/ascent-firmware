@@ -40,6 +40,24 @@ nvs_handle_t nvs_interface_get_handle(void)
     return my_handle;
 }
 
+void nvs_set_data(char *key, void *data){
+    my_handle = nvs_interface_get_handle();
+    size_t length = sizeof(data);
+    if (nvs_set_blob(my_handle, key, data, length) != ESP_OK) {
+        printf("Failed to set %s\n", key);
+        esp_restart();
+    }
+}
+
+void nvs_retreive_data(char *key, void *data){
+    my_handle = nvs_interface_get_handle();
+    size_t length = sizeof(data);
+    if (nvs_get_blob(my_handle, key, data, length) != ESP_OK) {
+        printf("Failed to get %s\n", key);
+        esp_restart();
+    }
+}
+
 void nvs_retreive_matrices(float *acc_correction_matrix, float *gyr_correction_matrix, float *mag_correction_matrix, float *high_g_correction_matrix, float *acc_bias_vector, float *gyr_bias_vector, float *mag_bias_vector, float *high_g_bias_vector) {
     my_handle = nvs_interface_get_handle();
 
