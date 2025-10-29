@@ -39,3 +39,110 @@ nvs_handle_t nvs_interface_get_handle(void)
 {
     return my_handle;
 }
+
+void nvs_retreive_matrices(float *acc_correction_matrix, float *gyr_correction_matrix, float *mag_correction_matrix, float *high_g_correction_matrix, float *acc_bias_vector, float *gyr_bias_vector, float *mag_bias_vector, float *high_g_bias_vector) {
+    my_handle = nvs_interface_get_handle();
+
+    size_t length = sizeof(&acc_correction_matrix);
+
+    // mats
+    length = sizeof(&acc_correction_matrix);
+    if (nvs_find_key(my_handle, "acc_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "acc_mat", &acc_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load acc_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&gyr_correction_matrix);
+    if (nvs_find_key(my_handle, "gyr_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "gyr_mat", &gyr_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load gyr_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&mag_correction_matrix);
+    if (nvs_find_key(my_handle, "mag_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "mag_mat", &mag_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load mag_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&high_g_correction_matrix);
+    if (nvs_find_key(my_handle, "high_g_mat", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "high_g_mat", &high_g_correction_matrix, &length) != ESP_OK) {
+            printf("Failed to load high_g_correction_matrix\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+
+    // vectors
+    length = sizeof(&acc_bias_vector);
+    if (nvs_find_key(my_handle, "acc_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "acc_vec", &acc_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load acc_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&gyr_bias_vector);
+    if (nvs_find_key(my_handle, "gyr_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "gyr_vec", &gyr_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load gyr_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&mag_bias_vector);
+    if (nvs_find_key(my_handle, "mag_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "mag_vec", &mag_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load mag_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+
+    length = sizeof(&high_g_bias_vector);
+    if (nvs_find_key(my_handle, "high_g_vec", NULL) == ESP_OK) {
+        if (nvs_get_blob(my_handle, "high_g_vec", &high_g_bias_vector, &length) != ESP_OK) {
+            printf("Failed to load high_g_bias_vector\n");
+            esp_restart();
+        }
+    } else {
+        printf("faild to load matix defaulting to matrix in c file\n");
+    }
+}
+
+void nvs_retreive_uuid(uint8_t *uuid[16]){
+    {
+        nvs_handle_t my_handle = nvs_interface_get_handle();
+        // if this is a 1 it will write the uuid to the nvs flash
+        // if it is 0 it will load the correct value from the nvs flash
+        
+        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
+            size_t length = sizeof(&uuid);
+            if (nvs_get_blob(my_handle, "uuid", &uuid, &length) != ESP_OK) {
+                printf("Failed to load uuid\n");
+                esp_restart();
+            }
+        } else {
+            printf("using fallback uuid\n");
+        }
+    }
+}

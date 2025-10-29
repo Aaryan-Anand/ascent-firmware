@@ -8,4 +8,6 @@ void nvs_interface_init(void);
 
 nvs_handle_t nvs_interface_get_handle(void);
 
+void nvs_retreive_matrices(float *acc_correction_matrix, float *gyr_correction_matrix, float *mag_correction_matrix, float *high_g_correction_matrix, float *acc_bias_vector, float *gyr_bias_vector, float *mag_bias_vector, float *high_g_bias_vector);
+void nvs_retreive_uuid(uint8_t *uuid[16]);
 #endif
