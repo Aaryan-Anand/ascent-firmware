@@ -206,50 +206,54 @@ void flash_dump_to_serial(int bank) {
         }
         if (all) break;
 
-        printf("%lu,", fp.n);
+        unsigned char* bytes_ptr = (unsigned char*)&fp.n;
+        printf("%02X %02X %02X %02X,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.timestamp;
         printf("%"PRId64",", fp.timestamp);
-        printf("%d,", fp.pyro_arm);
-        printf("%d,", fp.flight_state);
-
-        printf("%f,", fp.acc.x);
-        printf("%f,", fp.acc.y);
-        printf("%f,", fp.acc.z);
-
-        printf("%f,", fp.gyr.x);
-        printf("%f,", fp.gyr.y);
-        printf("%f,", fp.gyr.z);
-
-        printf("%f,", fp.mag.x);
-        printf("%f,", fp.mag.y);
-        printf("%f,", fp.mag.z);
-
-        printf("%f,", fp.high_g_acc.x);
-        printf("%f,", fp.high_g_acc.y);
-        printf("%f,", fp.high_g_acc.z);
-
-        printf("%f,", fp.baro.alt);
-        printf("%f,", fp.baro.pressure);
-        printf("%f,", fp.baro.temperature);
-
-        printf("%f,", fp.barometric_agl);
-        printf("%f,", fp.barometric_velocity);
-        printf("%f,", fp.average_barometric_velocity);
-
-        printf("%f,", fp.orientation.roll);
-        printf("%f,", fp.orientation.pitch);
-        printf("%f,", fp.orientation.yaw);
-        printf("%f,", fp.orientation.qw);
-        printf("%f,", fp.orientation.qx);
-        printf("%f,", fp.orientation.qy);
-        printf("%f,", fp.orientation.qz);
-
-        printf("%f,", fp.latitude);
-        printf("%f,", fp.longitude);
-        printf("%lu,", fp.gps_altitude);
-
-        printf("%f,", fp.bat_voltage);
-
-        printf("\n");
+        bytes_ptr = (unsigned char*)&fp.pyro_arm;
+        printf("%02X,", bytes_ptr[0]);
+        bytes_ptr = (unsigned char*)&fp.flight_state;
+        printf("%02X,", bytes_ptr[0]);
+//
+//        printf("%f,", fp.acc.x);
+//        printf("%f,", fp.acc.y);
+//        printf("%f,", fp.acc.z);
+//
+//        printf("%f,", fp.gyr.x);
+//        printf("%f,", fp.gyr.y);
+//        printf("%f,", fp.gyr.z);
+//
+//        printf("%f,", fp.mag.x);
+//        printf("%f,", fp.mag.y);
+//        printf("%f,", fp.mag.z);
+//
+//        printf("%f,", fp.high_g_acc.x);
+//        printf("%f,", fp.high_g_acc.y);
+//        printf("%f,", fp.high_g_acc.z);
+//
+//        printf("%f,", fp.baro.alt);
+//        printf("%f,", fp.baro.pressure);
+//        printf("%f,", fp.baro.temperature);
+//
+//        printf("%f,", fp.barometric_agl);
+//        printf("%f,", fp.barometric_velocity);
+//        printf("%f,", fp.average_barometric_velocity);
+//
+//        printf("%f,", fp.orientation.roll);
+//        printf("%f,", fp.orientation.pitch);
+//        printf("%f,", fp.orientation.yaw);
+//        printf("%f,", fp.orientation.qw);
+//        printf("%f,", fp.orientation.qx);
+//        printf("%f,", fp.orientation.qy);
+//        printf("%f,", fp.orientation.qz);
+//
+//        printf("%f,", fp.latitude);
+//        printf("%f,", fp.longitude);
+//        printf("%lu,", fp.gps_altitude);
+//
+//        printf("%f,", fp.bat_voltage);
+//
+//        printf("\n");
     }
 
     flash_erase_jingle();
