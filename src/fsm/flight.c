@@ -2,10 +2,12 @@
 
 #include "stdint.h"
 #include "math.h"
+#include "stdatomic.h"
 
 #include "flight_config.h"
 #include "driver_pyro.h"
 #include "lora_interface.h"
+#include "nvs_interface.h"
 
 #include "goober.h"
 
@@ -14,6 +16,53 @@ static uint8_t flight_state = FS_ON_PAD;
 
 #define APPO PYRO_CHANNEL_1
 #define MAINS PYRO_CHANNEL_2
+
+_Atomic flight_config_t flight_config;
+
+void flight_config_init(void) {
+    flight_config_t cfg;
+    if (nvs_retreive_flight_config(&cfg) != ESP_OK) {
+        cfg = (flight_config_t){
+            .lift_off_acceleration_threshold = 9.81*3,
+            .lift_off_tick_count = 5,
+            .apogee_acceleration_threshold = 9.81/2,
+            .apogee_tick_count = 5,
+            .burnout_acceleration_threshold = 0,
+            .burnout_tick_count = 5,
+            .recovery_burnout_counter = 1, // This condition will allow us to select the number of stages in multistage rockets
+            .arm_at_boot = false,
+            .Appo_Channel = PYRO_CHANNEL_1,
+            .Mains_Channel = PYRO_CHANNEL_2,
+            .Separation_Channel = 0,
+            .Ignition_Channel = 0,
+            .Aux_1_Channel = 0,
+            .Aux_2_Channel = 0,
+            .Aux_3_Channel = 0,
+            .Aux_4_Channel = 0,
+            .panic_velocity_threshold = -240.0f/3.28,
+            .main_deployment_altitude = 1000/3.28,
+            .main_deployment_tick_count = 5,
+            .highest_ground_elevation = 100,
+            .landed_velocity_threshold = 2,
+            .landed_tick_count = 255,
+        };
+        nvs_set_flight_config(&cfg);
+    }
+    atomic_store(&flight_config, cfg);
+    print_flight_config(cfg);
+}
+
+void flight_config_set(flight_config_t *cfg) {
+    flight_config_t old_cfg = atomic_load(&flight_config);
+    if(cfg->arm_at_boot != old_cfg.arm_at_boot && cfg->arm_at_boot) {
+        activate_txlock();
+    }
+    else if(cfg->arm_at_boot != old_cfg.arm_at_boot && !cfg->arm_at_boot) {
+        deactivate_txlock();
+    }
+
+    atomic_store(&flight_config, *cfg);
+}
 
 static bool deploy(pyro_channel_t channel)
 {
@@ -47,6 +96,13 @@ bool flight_update(
     static int count2 = 0;
 
     uint8_t pre = flight_state;
+    static bool loaded_flight_config = false;
+    // Take an atomic snapshot of the config for consistent reads in this tick
+    static flight_config_t cfg;
+    if (loaded_flight_config == false) {
+        cfg = atomic_load(&flight_config);
+        loaded_flight_config = true;
+    }
 
     switch (flight_state) {
         case FS_PREFLIGHT:
@@ -56,13 +112,13 @@ bool flight_update(
             break;
 
         case FS_ON_PAD:
-            if (xacc > ENGINE_GS) {
+            if (xacc > cfg.lift_off_acceleration_threshold) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
-            if (count1 >= 5) {
+            if (count1 >= cfg.lift_off_tick_count) {
                 flight_state = FS_BOOSTER;
                 activate_txlock();
                 printf("Activated txlock from FSM\n");
@@ -72,19 +128,19 @@ bool flight_update(
             break;
 
         case FS_BOOSTER:
-            if (xacc < 0) {
+            if (xacc < cfg.burnout_acceleration_threshold) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
-            if (count1 >= 5) {
+            if (count1 >= cfg.burnout_tick_count) {
                 flight_state = FS_COAST_BOOSTER;
             }
             break;
 
         case FS_COAST_BOOSTER:
-            if (xacc > ENGINE_GS) {
+            if (xacc > cfg.lift_off_acceleration_threshold) {
                 count1++;
             } else {
                 count1 = 0;
@@ -96,23 +152,23 @@ bool flight_update(
                 count2 = 0;
             }
 
-            if (count2 >= 5) {
-                deploy(APPO);
+            if (count2 >= cfg.apogee_tick_count) {
+                deploy(cfg.Appo_Channel);
                 printf("Deploy appo\n");
                 flight_state = FS_UNDER_DROGUES;
-            } else if (count1 >= 5) {
+            } else if (count1 >= cfg.lift_off_tick_count) {
                 flight_state = FS_SUSTAINER;
             }
             break;
 
         case FS_SUSTAINER:
-            if (xacc < 0) {
+            if (xacc < cfg.burnout_acceleration_threshold) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
-            if (count1 >= 5) {
+            if (count1 >= cfg.burnout_tick_count) {
                 flight_state = FS_COAST_SUSTAINER;
             }
             break;
@@ -124,42 +180,42 @@ bool flight_update(
                 count1 = 0;
             }
 
-            if (count1 >= 5) {
-                deploy(APPO);
+            if (count1 >= cfg.apogee_tick_count) {
+                deploy(cfg.Appo_Channel);
                 printf("Deploy appo\n");
                 flight_state = FS_UNDER_DROGUES;
             }
             break;
 
         case FS_UNDER_DROGUES:
-            if (average_barometric_velocity < PANIC_VEL) {
+            if (average_barometric_velocity < cfg.panic_velocity_threshold) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
-            if (barometric_agl < MAINS_ALT) {
+            if (barometric_agl < cfg.main_deployment_altitude) {
                 count2++;
             } else {
                 count2 = 0;
             }
 
-            if (count1 >= 50 || count2 >= 5) {
-                deploy(MAINS);
+            if (count1 >= 50 || count2 >= cfg.main_deployment_tick_count) {
+                deploy(cfg.Mains_Channel);
                 printf("Deploy Mains\n");
                 flight_state = FS_UNDER_MAINS;
             }
             break;
 
         case FS_UNDER_MAINS:
-            if (barometric_agl < 50 && fabs(average_barometric_velocity) < 2) {
+            if (barometric_agl < cfg.highest_ground_elevation && fabs(average_barometric_velocity) < cfg.landed_velocity_threshold) {
                 count1++;
             } else {
                 count1 = 0;
             }
 
             // for 6 seconds
-            if (count1 >= 300) {
+            if (count1 >= cfg.landed_tick_count) {
                 flight_state = FS_LANDED;
             }
             break;
@@ -200,4 +256,31 @@ const char* get_flight_state_name(void) {
     case FS_PREFLIGHT: return "FS_PREFLIGHT";
     }
     return "UNKNOWN";
+}
+
+
+void print_flight_config(flight_config_t cfg){
+    printf("Flight config:\n");
+    printf("  lift_off_acceleration_threshold: %f\n", cfg.lift_off_acceleration_threshold);
+    printf("  lift_off_tick_count: %d\n", cfg.lift_off_tick_count);
+    printf("  apogee_acceleration_threshold: %f\n", cfg.apogee_acceleration_threshold);
+    printf("  apogee_tick_count: %d\n", cfg.apogee_tick_count);
+    printf("  burnout_acceleration_threshold: %f\n", cfg.burnout_acceleration_threshold);
+    printf("  burnout_tick_count: %d\n", cfg.burnout_tick_count);
+    printf("  recovery_burnout_counter: %d\n", cfg.recovery_burnout_counter);
+    printf("  arm_at_boot: %d\n", cfg.arm_at_boot);
+    printf("  Appo_Channel: %d\n", cfg.Appo_Channel);
+    printf("  Mains_Channel: %d\n", cfg.Mains_Channel);
+    printf("  Separation_Channel: %d\n", cfg.Separation_Channel);
+    printf("  Ignition_Channel: %d\n", cfg.Ignition_Channel);
+    printf("  Aux_1_Channel: %d\n", cfg.Aux_1_Channel);
+    printf("  Aux_2_Channel: %d\n", cfg.Aux_2_Channel);
+    printf("  Aux_3_Channel: %d\n", cfg.Aux_3_Channel);
+    printf("  Aux_4_Channel: %d\n", cfg.Aux_4_Channel);
+    printf("  panic_velocity_threshold: %f\n", cfg.panic_velocity_threshold);
+    printf("  main_deployment_altitude: %f\n", cfg.main_deployment_altitude);
+    printf("  main_deployment_tick_count: %d\n", cfg.main_deployment_tick_count);
+    printf("  highest_ground_elevation: %f\n", cfg.highest_ground_elevation);
+    printf("  landed_velocity_threshold: %f\n", cfg.landed_velocity_threshold);
+    printf("  landed_tick_count: %d\n", cfg.landed_tick_count);
 }
