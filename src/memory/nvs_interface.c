@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <rom/ets_sys.h>
 #include "flight_config.h"
+#include "lora_interface.h"
 
 static nvs_handle_t my_handle;
 
@@ -156,4 +157,25 @@ esp_err_t nvs_retreive_flight_config(flight_config_t *flight_config){
 esp_err_t nvs_set_flight_config(flight_config_t *flight_config){
     printf("Setting flight_config\n");
     return nvs_set_blob(my_handle, "flight_config", flight_config, sizeof(flight_config_t));
+}
+
+esp_err_t nvs_retreive_lora_config(lora_config_t *lora_config){
+    nvs_handle_t my_handle = nvs_interface_get_handle();
+    size_t length = sizeof(lora_config_t);
+    esp_err_t err = nvs_get_blob(my_handle, "lora_config", lora_config, &length);
+    printf("retreived lora_config from nvs\n");
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("lora_config not found\n");
+        return ESP_ERR_NVS_NOT_FOUND;
+    }
+    else if (err != ESP_OK || length != sizeof(lora_config_t)) {
+        printf("Failed to load lora_config (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        return err != ESP_OK ? err : ESP_ERR_NVS_INVALID_LENGTH;
+    }
+    return ESP_OK;
+}
+
+esp_err_t nvs_set_lora_config(lora_config_t *lora_config){
+    printf("Setting lora_config\n");
+    return nvs_set_blob(my_handle, "lora_config", lora_config, sizeof(lora_config_t));
 }
