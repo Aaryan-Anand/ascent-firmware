@@ -40,127 +40,115 @@ nvs_handle_t nvs_interface_get_handle(void)
     return my_handle;
 }
 
-void nvs_set_data(char *key, void *data){
+void nvs_set_data(const char *key, const void *data, size_t length){
     my_handle = nvs_interface_get_handle();
-    size_t length = sizeof(data);
     if (nvs_set_blob(my_handle, key, data, length) != ESP_OK) {
         printf("Failed to set %s\n", key);
         esp_restart();
     }
 }
 
-void nvs_retreive_data(char *key, void *data){
+void nvs_retreive_data(const char *key, void *data, size_t *length){
     my_handle = nvs_interface_get_handle();
-    size_t length = sizeof(data);
     if (nvs_get_blob(my_handle, key, data, length) != ESP_OK) {
         printf("Failed to get %s\n", key);
         esp_restart();
     }
 }
 
-void nvs_retreive_matrices(float *acc_correction_matrix, float *gyr_correction_matrix, float *mag_correction_matrix, float *high_g_correction_matrix, float *acc_bias_vector, float *gyr_bias_vector, float *mag_bias_vector, float *high_g_bias_vector) {
+void nvs_retreive_matrices(float (*acc_correction_matrix)[3], float (*gyr_correction_matrix)[3], float (*mag_correction_matrix)[3], float (*high_g_correction_matrix)[3], float acc_bias_vector[3], float gyr_bias_vector[3], float mag_bias_vector[3], float high_g_bias_vector[3]) {
     my_handle = nvs_interface_get_handle();
 
-    size_t length = sizeof(&acc_correction_matrix);
+    esp_err_t err;
 
-    // mats
-    length = sizeof(&acc_correction_matrix);
-    if (nvs_find_key(my_handle, "acc_mat", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "acc_mat", &acc_correction_matrix, &length) != ESP_OK) {
-            printf("Failed to load acc_correction_matrix\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    // matrices: 3x3 (9 floats)
+    size_t mat_size = sizeof(float) * 9;
+    size_t vec_size = sizeof(float) * 3;
+
+    // acc matrix
+    size_t length = mat_size;
+    err = nvs_get_blob(my_handle, "acc_mat", (float*)acc_correction_matrix, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("acc_mat not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != mat_size) {
+        printf("Failed to load acc_correction_matrix (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&gyr_correction_matrix);
-    if (nvs_find_key(my_handle, "gyr_mat", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "gyr_mat", &gyr_correction_matrix, &length) != ESP_OK) {
-            printf("Failed to load gyr_correction_matrix\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    // gyr matrix
+    length = mat_size;
+    err = nvs_get_blob(my_handle, "gyr_mat", (float*)gyr_correction_matrix, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("gyr_mat not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != mat_size) {
+        printf("Failed to load gyr_correction_matrix (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&mag_correction_matrix);
-    if (nvs_find_key(my_handle, "mag_mat", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "mag_mat", &mag_correction_matrix, &length) != ESP_OK) {
-            printf("Failed to load mag_correction_matrix\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    // mag matrix
+    length = mat_size;
+    err = nvs_get_blob(my_handle, "mag_mat", (float*)mag_correction_matrix, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("mag_mat not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != mat_size) {
+        printf("Failed to load mag_correction_matrix (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&high_g_correction_matrix);
-    if (nvs_find_key(my_handle, "high_g_mat", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "high_g_mat", &high_g_correction_matrix, &length) != ESP_OK) {
-            printf("Failed to load high_g_correction_matrix\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    // high-g matrix
+    length = mat_size;
+    err = nvs_get_blob(my_handle, "high_g_mat", (float*)high_g_correction_matrix, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("high_g_mat not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != mat_size) {
+        printf("Failed to load high_g_correction_matrix (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-
-    // vectors
-    length = sizeof(&acc_bias_vector);
-    if (nvs_find_key(my_handle, "acc_vec", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "acc_vec", &acc_bias_vector, &length) != ESP_OK) {
-            printf("Failed to load acc_bias_vector\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    // vectors: 3 floats
+    length = vec_size;
+    err = nvs_get_blob(my_handle, "acc_vec", acc_bias_vector, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("acc_vec not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != vec_size) {
+        printf("Failed to load acc_bias_vector (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&gyr_bias_vector);
-    if (nvs_find_key(my_handle, "gyr_vec", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "gyr_vec", &gyr_bias_vector, &length) != ESP_OK) {
-            printf("Failed to load gyr_bias_vector\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    length = vec_size;
+    err = nvs_get_blob(my_handle, "gyr_vec", gyr_bias_vector, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("gyr_vec not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != vec_size) {
+        printf("Failed to load gyr_bias_vector (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&mag_bias_vector);
-    if (nvs_find_key(my_handle, "mag_vec", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "mag_vec", &mag_bias_vector, &length) != ESP_OK) {
-            printf("Failed to load mag_bias_vector\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    length = vec_size;
+    err = nvs_get_blob(my_handle, "mag_vec", mag_bias_vector, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("mag_vec not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != vec_size) {
+        printf("Failed to load mag_bias_vector (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        esp_restart();
     }
 
-    length = sizeof(&high_g_bias_vector);
-    if (nvs_find_key(my_handle, "high_g_vec", NULL) == ESP_OK) {
-        if (nvs_get_blob(my_handle, "high_g_vec", &high_g_bias_vector, &length) != ESP_OK) {
-            printf("Failed to load high_g_bias_vector\n");
-            esp_restart();
-        }
-    } else {
-        printf("faild to load matix defaulting to matrix in c file\n");
+    length = vec_size;
+    err = nvs_get_blob(my_handle, "high_g_vec", high_g_bias_vector, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("high_g_vec not found; using defaults from C file\n");
+    } else if (err != ESP_OK || length != vec_size) {
+        printf("Failed to load high_g_bias_vector (err=%d, len=%u)\n", (int)err, (unsigned)length);
     }
 }
 
-void nvs_retreive_uuid(uint8_t *uuid[16]){
-    {
-        nvs_handle_t my_handle = nvs_interface_get_handle();
-        // if this is a 1 it will write the uuid to the nvs flash
-        // if it is 0 it will load the correct value from the nvs flash
-        
-        if (nvs_find_key(my_handle, "uuid", NULL) == ESP_OK) {
-            size_t length = sizeof(&uuid);
-            if (nvs_get_blob(my_handle, "uuid", &uuid, &length) != ESP_OK) {
-                printf("Failed to load uuid\n");
-                esp_restart();
-            }
-        } else {
-            printf("using fallback uuid\n");
-        }
+void nvs_retreive_uuid(uint8_t *uuid){
+    nvs_handle_t my_handle = nvs_interface_get_handle();
+    size_t length = 16;
+    esp_err_t err = nvs_get_blob(my_handle, "uuid", uuid, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("uuid not found; using fallback uuid\n");
+    } else if (err != ESP_OK || length != 16) {
+        printf("Failed to load uuid (err=%d, len=%u)\n", (int)err, (unsigned)length);
     }
 }
