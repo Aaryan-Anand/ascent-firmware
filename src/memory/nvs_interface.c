@@ -7,6 +7,7 @@
 #include "esp_task_wdt.h"
 #include <inttypes.h>
 #include <rom/ets_sys.h>
+#include "flight_config.h"
 
 static nvs_handle_t my_handle;
 
@@ -38,22 +39,6 @@ void nvs_interface_init(void)
 nvs_handle_t nvs_interface_get_handle(void)
 {
     return my_handle;
-}
-
-void nvs_set_data(const char *key, const void *data, size_t length){
-    my_handle = nvs_interface_get_handle();
-    if (nvs_set_blob(my_handle, key, data, length) != ESP_OK) {
-        printf("Failed to set %s\n", key);
-        esp_restart();
-    }
-}
-
-void nvs_retreive_data(const char *key, void *data, size_t *length){
-    my_handle = nvs_interface_get_handle();
-    if (nvs_get_blob(my_handle, key, data, length) != ESP_OK) {
-        printf("Failed to get %s\n", key);
-        esp_restart();
-    }
 }
 
 void nvs_retreive_matrices(float (*acc_correction_matrix)[3], float (*gyr_correction_matrix)[3], float (*mag_correction_matrix)[3], float (*high_g_correction_matrix)[3], float acc_bias_vector[3], float gyr_bias_vector[3], float mag_bias_vector[3], float high_g_bias_vector[3]) {
@@ -151,4 +136,24 @@ void nvs_retreive_uuid(uint8_t *uuid){
     } else if (err != ESP_OK || length != 16) {
         printf("Failed to load uuid (err=%d, len=%u)\n", (int)err, (unsigned)length);
     }
+}
+
+esp_err_t nvs_retreive_flight_config(flight_config_t *flight_config){
+    nvs_handle_t my_handle = nvs_interface_get_handle();
+    size_t length = sizeof(flight_config_t);
+    esp_err_t err = nvs_get_blob(my_handle, "flight_config", flight_config, &length);
+    printf("retreived flight_config from nvs\n");
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        printf("flight_config not found\n");
+        return ESP_ERR_NVS_NOT_FOUND;
+    } else if (err != ESP_OK || length != sizeof(flight_config_t)) {
+        printf("Failed to load flight_config (err=%d, len=%u)\n", (int)err, (unsigned)length);
+        return err != ESP_OK ? err : ESP_ERR_NVS_INVALID_LENGTH;
+    }
+    return ESP_OK;
+}
+
+esp_err_t nvs_set_flight_config(flight_config_t *flight_config){
+    printf("Setting flight_config\n");
+    return nvs_set_blob(my_handle, "flight_config", flight_config, sizeof(flight_config_t));
 }

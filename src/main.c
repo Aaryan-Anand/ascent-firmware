@@ -78,7 +78,6 @@ static tNeopixelContext neopixel;
 
 //MARK: - DEBUG Defines
 // #define GENERAL_DEBUG
-// #define ARM_REGARDLESS_OF_TXLOCK
 //#define FUSION_DEBUG
 //#define DEBUG
 
@@ -280,13 +279,10 @@ void app_main(void) {
     #ifdef DEBUG
     activate_txlock();
     #endif
-    #ifdef ARM_REGARDLESS_OF_TXLOCK
-    fake_tx_lock();
-    #endif
-
-    #ifndef IS_BOOSTER
-    pyro_activate(PYRO_CHANNEL_3, 100, 1);
-    #endif
+    
+    if (atomic_load(&flight_config).arm_at_boot) {
+        activate_txlock();
+    }
 
     vTaskDelay(100 / portTICK_PERIOD_MS);
     printf("Creating tasks\n");
@@ -371,7 +367,9 @@ void init_boot_sequence(void) {
     sensor_manager_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    
+    flight_config_init();
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
     pyro_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
@@ -438,7 +436,7 @@ void beep_pyro_cont(void) {
 //MARK: - Read UUID
 void print_uuid(void){
     uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-    nvs_retreive_uuid(&uuid);
+    nvs_retreive_uuid(uuid);
     printf("UUID: ");
     for(uint8_t i = 0; i < 5; i++) {
         printf("%c", (((uint16_t)uuid[i*2] << 4) | uuid[i*2 + 1]));
