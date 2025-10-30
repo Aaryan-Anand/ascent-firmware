@@ -103,5 +103,6 @@ void turn_on_fan(void);
             
 
 void activate_txlock();
+void deactivate_txlock();
 
 #endif

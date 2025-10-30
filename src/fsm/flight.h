@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "flight_config.h"
 
 enum FlightState
 {
@@ -18,6 +19,9 @@ enum FlightState
 };
 
 // returns if the state changed or not
+
+void flight_config_init(void);
+
 bool flight_update(
     float barometric_agl,
     float barometric_velocity,
@@ -28,5 +32,7 @@ bool flight_update(
 uint8_t get_flight_state(void);
 
 const char* get_flight_state_name(void);
+
+void print_flight_config(flight_config_t cfg);
 
 #endif
