@@ -5,6 +5,7 @@
 #include "nvs.h"
 
 #include "flight_config.h"
+#include "lora_interface.h"
 
 void nvs_interface_init(void);
 
@@ -13,4 +14,6 @@ void nvs_retreive_matrices(float (*acc_correction_matrix)[3], float (*gyr_correc
 void nvs_retreive_uuid(uint8_t *uuid);
 esp_err_t nvs_retreive_flight_config(flight_config_t *flight_config);
 esp_err_t nvs_set_flight_config(flight_config_t *flight_config);
+esp_err_t nvs_retreive_lora_config(lora_config_t *lora_config);
+esp_err_t nvs_set_lora_config(lora_config_t *lora_config);
 #endif

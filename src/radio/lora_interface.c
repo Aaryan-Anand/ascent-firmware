@@ -11,10 +11,70 @@
 #include "flash_interface.h"
 #include "stdatomic.h"
 #include "driver_pyro.h"
+#include "nvs_interface.h"
 
 #include "goober.h"
 
 // Telemetry payload queue -- Always have the latest telemetry payload on hand
+
+static lora_config_t lora_config = {
+    
+};
+
+void lora_config_init(void) {
+    lora_config_t cfg;
+    if (nvs_retreive_lora_config(&cfg) != ESP_OK) {
+        cfg = (lora_config_t){
+            .frequency = 915e6,
+			.bandwidth = 9,
+			.coding_rate = 1,
+			.spreading_factor = 7,
+			.tx_power = 17,
+			.TDD = 0,
+        };
+        nvs_set_lora_config(&cfg);
+		printf("lora_config not found, setting default\n");
+    }
+    else {
+        printf("lora_config found, setting up LoRa\n");
+    }
+
+	lora_set_frequency(cfg.frequency);
+	lora_enable_crc();
+	lora_set_coding_rate(cfg.coding_rate);
+	lora_set_bandwidth(cfg.bandwidth);
+	lora_set_spreading_factor(cfg.spreading_factor);
+    lora_set_tx_power(cfg.tx_power);
+
+	printf("\n\n==============================================\n\n");
+    printf("Successfully initialized LoRa with the following parameters:\n\n");
+    printf("* frequency = %d MHz\n", (int)cfg.frequency / 1000000);
+	printf("* bandwidth = %d\n", cfg.bandwidth);
+	printf("* coding_rate = %d\n", cfg.coding_rate);
+	printf("* spreading_factor = %d\n", cfg.spreading_factor);
+    printf("* tx_power = %d\n", cfg.tx_power);
+    printf("\n==============================================\n\n");
+}
+
+void lora_config_set(lora_config_t *cfg) {
+    if(cfg->frequency != lora_config.frequency) {
+        lora_set_frequency(cfg->frequency);
+    }
+    if(cfg->bandwidth != lora_config.bandwidth) {
+        lora_set_bandwidth(cfg->bandwidth);
+    }
+    if(cfg->coding_rate != lora_config.coding_rate) {
+        lora_set_coding_rate(cfg->coding_rate);
+    }
+    if(cfg->spreading_factor != lora_config.spreading_factor) {
+        lora_set_spreading_factor(cfg->spreading_factor);
+    }
+    if(cfg->tx_power != lora_config.tx_power) {
+        lora_set_tx_power(cfg->tx_power);
+    }
+	lora_config = *cfg;
+	nvs_set_lora_config(&lora_config);
+}
 
 QueueHandle_t telemetryPayloadQueue;
 
@@ -37,30 +97,7 @@ esp_err_t lora_flight_init()
         return ESP_FAIL;
     }
 
-	lora_set_frequency(LORA_FREQ);
-
-	lora_enable_crc();
-
-	int cr = 1;
-	int bw = 9;
-	int sf = 7;
-
-	lora_set_coding_rate(cr);
-
-	lora_set_bandwidth(bw);
-
-	lora_set_spreading_factor(sf);
-
-    lora_set_tx_power(17);
-
-    printf("\n\n==============================================\n\n");
-    printf("Successfully initialized LoRa with the following parameters:\n\n");
-    printf("* frequency = %d MHz\n", (int)LORA_FREQ / 1000000);
-	printf("* bandwidth = %d\n", bw);
-	printf("* coding_rate = %d\n", cr);
-	printf("* spreading_factor = %d\n", sf);
-    printf("* tx_power = %d\n", 17);
-    printf("\n==============================================\n\n");
+	lora_config_init();
 
 	return ESP_OK;
 }
