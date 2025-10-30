@@ -14,7 +14,7 @@ void high_power_mode(void);
 
 void beep_pyro_cont(void);
 
-void read_uuid(void);
+void print_uuid(void);
 
 void primary_preflight(uint32_t *cycle, GPS_data_t *gps_data);
 void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state);

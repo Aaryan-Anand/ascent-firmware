@@ -84,7 +84,7 @@ static void print_vec_3(float* vec)
 }
 
 void sensor_manager_init() {
-    nvs_retreive_matrices(&acc_correction_matrix, &gyr_correction_matrix, &mag_correction_matrix, &high_g_correction_matrix, &acc_bias_vector, &gyr_bias_vector, &mag_bias_vector, &high_g_bias_vector);
+    nvs_retreive_matrices(acc_correction_matrix, gyr_correction_matrix, mag_correction_matrix, high_g_correction_matrix, acc_bias_vector, gyr_bias_vector, mag_bias_vector, high_g_bias_vector);
 
     print_mat_3x3((float*) acc_correction_matrix);
     print_mat_3x3((float*) gyr_correction_matrix);
