@@ -188,7 +188,9 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			break;
 		}
 		case MSG_TYPE_REQ_WAKEUP: { // acts as a toggle! this will need to be revisted. - abdul
+			#ifdef LORA_DEBUG
 			printf("Received REQ_WAKEUP\n");
+			#endif
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
@@ -197,6 +199,40 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 
 			bool value = atomic_load(&thread_safe_should_wakeup);
 			atomic_store(&thread_safe_should_wakeup, !value);
+
+			break;
+		}
+		case MSG_TYPE_NVS_EDIT_FLIGHT: {
+			#ifdef LORA_DEBUG
+			printf("Received NVS_EDIT_FLIGHT\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_NVS_EDIT_FLIGHT;
+			resp_msg_payload_len = sizeof(flight_config_t);
+			
+			flight_config_t received_flight_config = master_msg.payload.flight_config;
+
+			if (nvs_set_flight_config(&received_flight_config) != ESP_OK) {
+				resp_payload.flight_config = {0}; // all zeros = something went horribly wrong
+			} else {
+				nvs_retreive_flight_config(&resp_payload.flight_config);
+			}
+
+			break;
+		}
+		case MSG_TYPE_NVS_EDIT_LORA: {
+			#ifdef LORA_DEBUG
+			printf("Received NVS_EDIT_LORA\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_NVS_EDIT_LORA;
+			resp_msg_payload_len = sizeof(lora_config_t);
+
+			lora_config_t received_lora_config = master_msg.payload.lora_config;
+
+			if (nvs_set_lora_config(&received_lora_config) != ESP_OK) {
+				resp_payload.lora_config = {0}; // all zeros = something went horribly wrong
+			} else {
+				nvs_retreive_lora_config(&resp_payload.lora_config);
+			}
 
 			break;
 		}

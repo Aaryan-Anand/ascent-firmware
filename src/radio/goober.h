@@ -4,6 +4,10 @@
 #include "stdbool.h"
 #include "stdint.h"
 
+#include "lora_interface.h"
+#include "flight_config.h"
+#include "nvs_interface.h"
+
 // ONE BYTE MESSAGE PAYLOADS
  
 #define REQ_PINGPONG         0xFF  // Expect POST_PINGPONG
@@ -32,7 +36,9 @@ typedef enum {
     MSG_TYPE_REQ_REBOOT = 0x1E,
     MSG_TYPE_REQ_POP_APOGEE = 0x69,
     MSG_TYPE_REQ_POP_MAINS = 0x6A,
-    MSG_TYPE_REQ_WAKEUP = 0x6B
+    MSG_TYPE_REQ_WAKEUP = 0x6B,
+    MSG_TYPE_NVS_EDIT_FLIGHT = 0x73,
+    MSG_TYPE_NVS_EDIT_LORA = 0x74
 } goober_msg_type_t;
 
 typedef struct {
@@ -65,6 +71,8 @@ typedef union {
     goober_post_telemetry_payload_t telemetry;
     goober_post_locator_payload_t   locate;
     goober_post_single_byte_payload_t single_byte;
+    flight_config_t flight_config;
+    lora_config_t lora_config;
     uint8_t raw[ sizeof(goober_post_telemetry_payload_t) ];
 } goober_payload_t;
 
