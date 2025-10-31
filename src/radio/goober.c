@@ -1,4 +1,5 @@
 #include "goober.h"
+#include "nvs_interface.h"
 #include "driver_pyro.h"
 #include "stdatomic.h"
 #include "string.h"

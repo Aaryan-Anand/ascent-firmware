@@ -4,9 +4,10 @@
 #include "stdbool.h"
 #include "stdint.h"
 
-#include "lora_interface.h"
 #include "flight_config.h"
-#include "nvs_interface.h"
+#include "lora_types.h"
+
+// lora_config_t provided by lora_types.h
 
 // ONE BYTE MESSAGE PAYLOADS
  
@@ -67,7 +68,7 @@ typedef struct {
 
 // Union of payloads
 
-typedef union {
+typedef union goober_payload {
     goober_post_telemetry_payload_t telemetry;
     goober_post_locator_payload_t   locate;
     goober_post_single_byte_payload_t single_byte;
@@ -78,7 +79,7 @@ typedef union {
 
 // GOOBER Message Structure
 
-typedef struct {
+typedef struct goober {
     uint8_t DEV_ID;         // 1 byte
     uint8_t DEV_MODE;       // 1 byte
     uint8_t SEQ_ID;         // 1 byte

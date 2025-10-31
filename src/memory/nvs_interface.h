@@ -5,7 +5,8 @@
 #include "nvs.h"
 
 #include "flight_config.h"
-#include "lora_interface.h"
+
+typedef struct lora_config lora_config_t; // forward declaration
 
 void nvs_interface_init(void);
 

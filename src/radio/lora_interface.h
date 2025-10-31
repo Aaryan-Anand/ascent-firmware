@@ -5,17 +5,11 @@
 #include "stdint.h"
 #include "esp_err.h"
 #include "lora.h"
-#include "goober.h"
+#include "lora_types.h"
 
 // #define LORA_DEBUG
-typedef struct {
-    long frequency;
-    int bandwidth;
-    int coding_rate;
-    int spreading_factor;
-    int tx_power;
-    uint8_t TDD;
-} lora_config_t;
+typedef struct goober goober_t;                 // forward declaration
+typedef union  goober_payload goober_payload_t; // forward declaration
 
 void lora_config_init(void);
 
