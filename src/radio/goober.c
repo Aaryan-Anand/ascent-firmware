@@ -338,3 +338,7 @@ bool should_wake_up() {
 void activate_txlock() {
 	atomic_store(&thread_safe_txlock, true);
 }
+
+void deactivate_txlock() {
+	atomic_store(&thread_safe_txlock, false);
+}
