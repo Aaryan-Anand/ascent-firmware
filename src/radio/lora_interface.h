@@ -3,9 +3,9 @@
 
 #include "stdbool.h"
 #include "stdint.h"
+#include "esp_err.h"
 #include "lora.h"
 #include "goober.h"
-#define LORA_FREQ 920e6
 
 // #define LORA_DEBUG
 typedef struct {
