@@ -713,6 +713,7 @@ void secondary_flight(uint32_t *cycle) {
             rcv = lora_blocking_listen(&rcv_packet, 21);
             if (rcv) {
                 rsp_packet = gooberSlaveResponse(rcv_packet, telemetry_payload);
+                vTaskDelay(15 / portTICK_PERIOD_MS); // to allow time for the GS to switch to receive mode
                 lora_transmit_packet(&rsp_packet);
             }
         } else {
