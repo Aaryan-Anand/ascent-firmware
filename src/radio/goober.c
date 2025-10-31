@@ -212,7 +212,7 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			flight_config_t received_flight_config = master_msg.payload.flight_config;
 
 			if (nvs_set_flight_config(&received_flight_config) != ESP_OK) {
-				resp_payload.flight_config = {0}; // all zeros = something went horribly wrong
+				resp_payload.flight_config = (flight_config_t){0}; // all zeros = something went horribly wrong
 			} else {
 				nvs_retreive_flight_config(&resp_payload.flight_config);
 			}
@@ -229,7 +229,7 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			lora_config_t received_lora_config = master_msg.payload.lora_config;
 
 			if (nvs_set_lora_config(&received_lora_config) != ESP_OK) {
-				resp_payload.lora_config = {0}; // all zeros = something went horribly wrong
+				resp_payload.lora_config = (lora_config_t){0}; // all zeros = something went horribly wrong
 			} else {
 				nvs_retreive_lora_config(&resp_payload.lora_config);
 			}
