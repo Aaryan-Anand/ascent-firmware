@@ -8,6 +8,18 @@
 #define LORA_FREQ 920e6
 
 // #define LORA_DEBUG
+typedef struct {
+    long frequency;
+    int bandwidth;
+    int coding_rate;
+    int spreading_factor;
+    int tx_power;
+    uint8_t TDD;
+} lora_config_t;
+
+void lora_config_init(void);
+
+void lora_config_set(lora_config_t *cfg);
 
 void queueLatestTelemetryPayload(goober_payload_t *payload);
 
