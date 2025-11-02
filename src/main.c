@@ -69,6 +69,8 @@ static tNeopixelContext neopixel;
 #include "sensor_fusion.h"
 //SITL
 #include "sitl.h"
+//BLE
+#include "ble.h"
 
 
 
@@ -406,6 +408,9 @@ void init_boot_sequence(void) {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
     neopixel_SetPixel(neopixel, (tNeopixel[]){ { 0, NP_RGB(0, 255,  255) } }, 1);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+
+    ble_init();
     vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
