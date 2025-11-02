@@ -1,6 +1,9 @@
 idf_component_register(
     SRCS 
         "main.c"
+        "ble/ble.c"
+        "ble/gatt_svr.c"
+        "ble/misc.c"
         "globals.c"
         "radio/goober.c"
         "sensor/orientation.c"
@@ -19,6 +22,9 @@ idf_component_register(
         "radio"
         "memory"
         "sensor"
+        "ble"
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
-    REQUIRES esp_timer
+    REQUIRES
+        esp_timer
+        bt
 )
