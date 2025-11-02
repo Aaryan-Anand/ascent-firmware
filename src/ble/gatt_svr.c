@@ -25,6 +25,8 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
+#include "goober.h"
+#include "ble.h"
 
 static const ble_uuid16_t gatt_svr_svc_uuid =
     BLE_UUID16_INIT(0x0000);
@@ -34,6 +36,10 @@ static uint8_t gatt_svr_chr_val;
 static uint16_t gatt_svr_chr_val_handle;
 static const ble_uuid16_t gatt_svr_chr_uuid =
     BLE_UUID16_INIT(0x0001);
+
+/* Store the latest request packet from write operations */
+static goober_t stored_request_packet;
+static bool has_stored_request = false;
 
 static int
 gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -96,9 +102,40 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         MODLOG_DFLT(INFO, "Characteristic read; conn_handle=%d attr_handle=%d\n",
                     conn_handle, attr_handle);
         if (attr_handle == gatt_svr_chr_val_handle) {
-            printf("Sending the following bytes: \n");
-            print_bytes(ctxt->om->om_data, ctxt->om->om_len);
-            return BLE_ATT_ERR_UNLIKELY;
+            goober_t request_packet;
+            goober_t response_packet;
+            
+            // Use stored request packet if available, otherwise create a default request
+            if (has_stored_request) {
+                request_packet = stored_request_packet;
+            } else {
+                // Create a default request packet for telemetry
+                goober_payload_t empty_payload;
+                empty_payload.single_byte.single_byte_payload = 0x01;
+                request_packet = gooberCreatePacket(0x00, false, false, false, 
+                                                    MSG_TYPE_POST_PINGPONG, 1, &empty_payload);
+            }
+            
+            // Get the goober packet response
+            response_packet = get_goober_packet(request_packet);
+
+            uint8_t serialized_buffer_length = 5 + response_packet.PAYLOAD_SIZE;
+            uint8_t *serialized_packet = malloc(serialized_buffer_length);
+            
+            gooberSerialize(&response_packet, serialized_packet, serialized_buffer_length);
+
+            
+            // Append the serialized data to the output mbuf
+            rc = os_mbuf_append(ctxt->om, serialized_packet, serialized_buffer_length);
+            if (rc != 0) {
+                MODLOG_DFLT(ERROR, "Failed to append data to mbuf; rc=%d\n", rc);
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            free(serialized_packet);
+            
+            MODLOG_DFLT(INFO, "Sending goober packet response (size=%d)\n", serialized_buffer_length);
+            return 0;
         }
         break;
 
@@ -106,9 +143,34 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         MODLOG_DFLT(INFO, "Characteristic write; conn_handle=%d attr_handle=%d\n",
                     conn_handle, attr_handle);
         if (attr_handle == gatt_svr_chr_val_handle) {
-            printf("Got written to the following bytes: \n");
-            print_bytes(ctxt->om->om_data, ctxt->om->om_len);
-            return BLE_ATT_ERR_UNLIKELY;
+            uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
+            uint8_t rx_buffer[256];
+            uint16_t len;
+            int rc;
+            
+            // Read the incoming data from the mbuf
+            if (om_len > sizeof(rx_buffer)) {
+                MODLOG_DFLT(ERROR, "Write data too large (%d bytes)\n", om_len);
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+            
+            rc = ble_hs_mbuf_to_flat(ctxt->om, rx_buffer, sizeof(rx_buffer), &len);
+            if (rc != 0) {
+                MODLOG_DFLT(ERROR, "Failed to read write data; rc=%d\n", rc);
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+            
+            // Parse the incoming data as a goober packet
+            if (len >= 5) { // Minimum size for a goober packet header
+                stored_request_packet = gooberParse(rx_buffer, len);
+                has_stored_request = true;
+                MODLOG_DFLT(INFO, "Stored request packet (MSG_CLS=0x%02X)\n", 
+                           stored_request_packet.MSG_CLS);
+            } else {
+                MODLOG_DFLT(WARN, "Write data too short to be a goober packet\n");
+            }
+            
+            return 0;
         }
         break;
 

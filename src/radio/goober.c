@@ -202,7 +202,7 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 		}
 		default: {
 			#ifdef LORA_DEBUG
-			printf("Unknown MSG_TYPE: 0x%X\n", request_msg_type);
+			printf("Unknown MSG_TYPE: 0x%X\n", master_msg.MSG_CLS);
 			#endif
 			break;
 		}
@@ -325,6 +325,14 @@ void gooberSerialize(goober_t *packet, uint8_t *tx_buffer, uint8_t tx_buffer_siz
     if (packet->PAYLOAD_SIZE > 0) {
         memcpy(&tx_buffer[5], packet->payload.raw, packet->PAYLOAD_SIZE);
     }
+
+	#ifdef GOOBER_DEBUG
+	for (int i = 0; i < serialized_size; i++) {
+		printf("Serializing packet byte %d: ", i);
+		printf("0x%02X\n", tx_buffer[i]);
+	}
+	printf("\n");
+	#endif
 }
 
 bool is_tx_lock() {
