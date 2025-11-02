@@ -1,4 +1,4 @@
 [submodule "ascent-drivers"]
 	path = ascent-drivers
-	url = https://github.com/ASU-SEDS-RD/ascent-drivers
+	url = https://git.sedsrd.space/SEDS-RD/ascent-drivers
 	branch = main
