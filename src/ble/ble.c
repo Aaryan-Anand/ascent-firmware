@@ -28,6 +28,22 @@
 #include "bleprph.h"
 #include "esp_peripheral.h"
 
+#include "goober.h"
+#include "lora_interface.h"
+
+goober_t get_goober_packet(goober_t request_packet) {
+    goober_t packet;
+    goober_payload_t telemetry_payload;
+    peekLatestTelemetryPayload(&telemetry_payload);
+    if(!is_tx_lock()) {
+        packet = gooberSlaveResponse(request_packet, telemetry_payload);
+    } else {
+        packet = gooberCreatePacket(0x41, 0, 0, 0, MSG_TYPE_POST_TELEM, sizeof(goober_post_telemetry_payload_t), &telemetry_payload);
+        packet.DEV_MODE = 0x08;
+    }
+    return packet;
+}
+
 static const char *tag = "BLE HOST";
 static int bleprph_gap_event(struct ble_gap_event *event, void *arg);
 
