@@ -237,6 +237,21 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 
 			break;
 		}
+		case MSG_TYPE_NVS_DUMP: {
+			#ifdef LORA_DEBUG
+			printf("Received NVS_DUMP\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_NVS_DUMP;
+			resp_msg_payload_len = 104;
+			printf("%d\n", resp_msg_payload_len);
+
+			nvs_dump_t response_nvs_dump = {0};
+
+			nvs_retreive_flight_config(&response_nvs_dump.flight_config);
+			nvs_retreive_lora_config(&response_nvs_dump.lora_config);
+
+			resp_payload.nvs_dump = response_nvs_dump;
+		}
 		default: {
 			#ifdef LORA_DEBUG
 			printf("Unknown MSG_TYPE: 0x%X\n", request_msg_type);
