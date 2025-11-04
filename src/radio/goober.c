@@ -13,6 +13,7 @@
 #define SLAVE_DEV_ID 0x41
 
 // #define GOOBER_DEBUG
+// #define LORA_DEBUG
 
 static bool CAMERA_ACTIVE = false;
 
@@ -232,6 +233,15 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			resp_msg_payload_len = sizeof(lora_config_t);
 
 			lora_config_t received_lora_config = master_msg.payload.lora_config;
+			
+			printf("\n\n==============================================\n\n");
+			printf("Successfully received the following parameters:\n\n");
+			printf("* frequency = %d MHz\n", (int)received_lora_config.frequency / 1000000);
+			printf("* bandwidth = %d\n", received_lora_config.bandwidth);
+			printf("* coding_rate = %d\n", received_lora_config.coding_rate);
+			printf("* spreading_factor = %d\n", received_lora_config.spreading_factor);
+			printf("* tx_power = %d\n", received_lora_config.tx_power);
+			printf("\n==============================================\n\n");
 
 			if (nvs_set_lora_config(&received_lora_config) != ESP_OK) {
 				resp_payload.lora_config = (lora_config_t){0}; // all zeros = something went horribly wrong
@@ -255,10 +265,73 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			nvs_retreive_lora_config(&response_nvs_dump.lora_config);
 
 			resp_payload.nvs_dump = response_nvs_dump;
+			break;
+		}
+		case MSG_TYPE_NVS_DUMP_LORA: {
+			#ifdef LORA_DEBUG
+			printf("Received NVS_DUMP_LORA\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_NVS_DUMP_LORA;
+			resp_msg_payload_len = sizeof(lora_config_t);
+
+			goober_payload_t nvs_dump_lora_payload;
+
+			nvs_dump_lora_payload.lora_config = (lora_config_t){
+				.frequency = 0,
+				.bandwidth = 0,
+				.coding_rate = 0,
+				.spreading_factor = 0,
+				.tx_power = 0,
+				.TDD = 0,
+			};
+			
+			nvs_retreive_lora_config(&nvs_dump_lora_payload.lora_config);
+
+			resp_payload = nvs_dump_lora_payload;
+			break;
+		}
+		case MSG_TYPE_NVS_DUMP_FLIGHT: {
+			#ifdef LORA_DEBUG
+			printf("Received NVS_DUMP_FLIGHT\n");
+			#endif
+			resp_msg_cls = MSG_TYPE_NVS_DUMP_FLIGHT;
+			resp_msg_payload_len = sizeof(lora_config_t);
+
+			goober_payload_t nvs_dump_flight_payload;
+
+			nvs_dump_flight_payload.flight_config = (flight_config_t){
+				.lift_off_acceleration_threshold = 0,
+				.lift_off_tick_count = 0,
+				.apogee_acceleration_threshold = 0,
+				.apogee_tick_count = 0,
+				.burnout_acceleration_threshold = 0,
+				.burnout_tick_count = 0,
+				.recovery_burnout_counter = 0, // This condition will allow us to select the number of stages in multistage rockets
+				.arm_at_boot = 0,
+				.Appo_Channel = 0,
+				.Mains_Channel = 0,
+				.Separation_Channel = 0,
+				.Ignition_Channel = 0,
+				.Aux_1_Channel = 0,
+				.Aux_2_Channel = 0,
+				.Aux_3_Channel = 0,
+				.Aux_4_Channel = 0,
+				.panic_velocity_threshold = 0,
+				.main_deployment_altitude = 0,
+				.main_deployment_tick_count = 0,
+				.highest_ground_elevation = 0,
+				.landed_velocity_threshold = 0,
+				.landed_tick_count = 0,
+			};
+			
+			nvs_retreive_flight_config(&nvs_dump_flight_payload.flight_config);
+
+			resp_payload = nvs_dump_flight_payload;
+			break;
 		}
 		default: {
 			#ifdef LORA_DEBUG
-			printf("Unknown MSG_TYPE: 0x%X\n", request_msg_type);
+			printf("Unknown MSG_TYPE: 0x%X\n", master_msg.MSG_CLS);
 			#endif
 			break;
 		}
