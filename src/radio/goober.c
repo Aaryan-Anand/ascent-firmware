@@ -247,6 +247,8 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 				resp_payload.lora_config = (lora_config_t){0}; // all zeros = something went horribly wrong
 			} else {
 				nvs_retreive_lora_config(&resp_payload.lora_config);
+				vTaskDelay(500/portTICK_PERIOD_MS);
+				esp_restart();
 			}
 
 			break;
@@ -286,8 +288,6 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			};
 			
 			nvs_retreive_lora_config(&nvs_dump_lora_payload.lora_config);
-
-			esp_restart();
 
 			resp_payload = nvs_dump_lora_payload;
 			break;
