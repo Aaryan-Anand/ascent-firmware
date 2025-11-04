@@ -175,7 +175,9 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
-			deploy(APPO);
+			if(master_msg.DEV_ID == 0x69) {
+				deploy(APPO);
+			}
 			break;
 		}
 		case MSG_TYPE_REQ_POP_MAINS: {
@@ -185,7 +187,9 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
-			deploy(MAINS);
+			if (master_msg.DEV_ID == 0x69) {
+				deploy(MAINS);
+			}
 			break;
 		}
 		case MSG_TYPE_REQ_WAKEUP: { // acts as a toggle! this will need to be revisted. - abdul
