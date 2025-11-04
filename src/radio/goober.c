@@ -287,6 +287,8 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			
 			nvs_retreive_lora_config(&nvs_dump_lora_payload.lora_config);
 
+			esp_restart();
+
 			resp_payload = nvs_dump_lora_payload;
 			break;
 		}
