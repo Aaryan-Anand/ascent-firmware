@@ -1,6 +1,7 @@
 //MARK: - ESP-IDF
 #include <stdio.h>
 #include <inttypes.h>
+#include "radio/goober.h"
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
