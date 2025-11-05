@@ -141,6 +141,7 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			#endif
 			bmp_aquire_ground();
 			TXLOCK = flash_prepare_for_flight();
+			ble_stop();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
