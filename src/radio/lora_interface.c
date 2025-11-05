@@ -83,7 +83,12 @@ void queueLatestTelemetryPayload(goober_payload_t *payload) {
 }
 
 void peekLatestTelemetryPayload(goober_payload_t *payload) {
-	xQueuePeek(telemetryPayloadQueue, payload, portMAX_DELAY);
+	// Use a 100ms timeout instead of portMAX_DELAY to prevent blocking ISRs
+	// If queue is empty, return a zeroed payload
+	if (xQueuePeek(telemetryPayloadQueue, payload, pdMS_TO_TICKS(100)) != pdTRUE) {
+		// Queue is empty or timeout - return a zeroed payload
+		memset(payload, 0, sizeof(goober_payload_t));
+	}
 }
 
 // LoRa Functionality
