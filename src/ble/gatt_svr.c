@@ -106,16 +106,12 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
             goober_t request_packet;
             goober_t response_packet;
             
-            // Use stored request packet if available, otherwise create a default request
-            if (has_stored_request) {
-                request_packet = stored_request_packet;
-            } else {
-                // Create a default request packet for telemetry
-                goober_payload_t empty_payload;
-                empty_payload.single_byte.single_byte_payload = 0x01;
-                request_packet = gooberCreatePacket(0x00, false, false, false, 
-                                                    MSG_TYPE_REQ_TELEM, 1, &empty_payload);
-            }
+
+            // Create a default request packet for telemetry
+            goober_payload_t empty_payload;
+            empty_payload.single_byte.single_byte_payload = 0x01;
+            request_packet = gooberCreatePacket(0x00, false, false, false, 
+                                                MSG_TYPE_REQ_TELEM, 1, &empty_payload);
             
             // Get the goober packet response
             response_packet = get_goober_packet(request_packet);
@@ -171,14 +167,12 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                 }
                 printf("\n");
                 stored_request_packet = gooberParse(rx_buffer, len);
-                has_stored_request = true;
-                MODLOG_DFLT(INFO, "Stored request packet (MSG_CLS=0x%02X)\n", 
-                           stored_request_packet.MSG_CLS);
                 goober_t dummy_packet;
                 dummy_packet = get_goober_packet(stored_request_packet);
                 // there won't be a "response" but this a roundabout way of running goooberSlaveResponse
                 // normally we use REQ_TELEM to request and get a response, but BLE sends it by default so this logic is for non REQ_TELEM commmands
                 // this will need to be revisited - abdul
+                free(rx_buffer);
                 return BLE_ATT_ERR_UNLIKELY;
             } else {
                 MODLOG_DFLT(WARN, "Write data too short to be a goober packet\n");
