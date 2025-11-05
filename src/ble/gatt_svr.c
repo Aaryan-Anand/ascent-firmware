@@ -99,8 +99,9 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
 
     switch (ctxt->op) {
     case BLE_GATT_ACCESS_OP_READ_CHR:
-        MODLOG_DFLT(INFO, "Characteristic read; conn_handle=%d attr_handle=%d\n",
-                    conn_handle, attr_handle);
+        // Removed logging here to prevent UART blocking during BLE operations
+        // MODLOG_DFLT(INFO, "Characteristic read; conn_handle=%d attr_handle=%d\n",
+        //             conn_handle, attr_handle);
         if (attr_handle == gatt_svr_chr_val_handle) {
             goober_t request_packet;
             goober_t response_packet;
@@ -113,7 +114,7 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                 goober_payload_t empty_payload;
                 empty_payload.single_byte.single_byte_payload = 0x01;
                 request_packet = gooberCreatePacket(0x00, false, false, false, 
-                                                    MSG_TYPE_POST_PINGPONG, 1, &empty_payload);
+                                                    MSG_TYPE_REQ_TELEM, 1, &empty_payload);
             }
             
             // Get the goober packet response
@@ -134,14 +135,16 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
 
             free(serialized_packet);
             
-            MODLOG_DFLT(INFO, "Sending goober packet response (size=%d)\n", serialized_buffer_length);
+            // Removed logging here to prevent UART blocking during BLE operations
+            // MODLOG_DFLT(INFO, "Sending goober packet response (size=%d)\n", serialized_buffer_length);
             return 0;
         }
         break;
 
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
-        MODLOG_DFLT(INFO, "Characteristic write; conn_handle=%d attr_handle=%d\n",
-                    conn_handle, attr_handle);
+        // Removed logging here to prevent UART blocking during BLE operations
+        // MODLOG_DFLT(INFO, "Characteristic write; conn_handle=%d attr_handle=%d\n",
+        //             conn_handle, attr_handle);
         if (attr_handle == gatt_svr_chr_val_handle) {
             uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
             uint8_t rx_buffer[256];
@@ -162,12 +165,24 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
             
             // Parse the incoming data as a goober packet
             if (len >= 5) { // Minimum size for a goober packet header
+                printf("Received BLE packet: ");
+                for(int i = 0; i < len; i++) {
+                    printf("0x%02X ", rx_buffer[i]);
+                }
+                printf("\n");
                 stored_request_packet = gooberParse(rx_buffer, len);
                 has_stored_request = true;
                 MODLOG_DFLT(INFO, "Stored request packet (MSG_CLS=0x%02X)\n", 
                            stored_request_packet.MSG_CLS);
+                goober_t dummy_packet;
+                dummy_packet = get_goober_packet(stored_request_packet);
+                // there won't be a "response" but this a roundabout way of running goooberSlaveResponse
+                // normally we use REQ_TELEM to request and get a response, but BLE sends it by default so this logic is for non REQ_TELEM commmands
+                // this will need to be revisited - abdul
+                return BLE_ATT_ERR_UNLIKELY;
             } else {
                 MODLOG_DFLT(WARN, "Write data too short to be a goober packet\n");
+                return BLE_ATT_ERR_UNLIKELY;
             }
             
             return 0;
