@@ -284,4 +284,5 @@ ble_init(void)
 
 void ble_stop(void) {
     nimble_port_stop();
+    nimble_port_freertos_deinit();
 }
