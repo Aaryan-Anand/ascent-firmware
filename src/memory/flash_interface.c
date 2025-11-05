@@ -195,6 +195,9 @@ void flash_dump_to_serial(int bank) {
 
     addr = BANK_SIZE*bank;
     printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
+    
+    unsigned char* bytes_ptr = NULL;
+
     while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
         w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
         addr += sizeof(flash_packet);
@@ -206,48 +209,82 @@ void flash_dump_to_serial(int bank) {
         }
         if (all) break;
 
-        printf("%lu,", fp.n);
-        printf("%"PRId64",", fp.timestamp);
-        printf("%d,", fp.pyro_arm);
-        printf("%d,", fp.flight_state);
+        bytes_ptr = (unsigned char*)&fp.n;
+        printf("%02X %02X %02X %02X,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.timestamp;
+        printf("%02X %02x %02x %02x %02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3], bytes_ptr[4], bytes_ptr[5], bytes_ptr[6], bytes_ptr[7]);
+        bytes_ptr = (unsigned char*)&fp.pyro_arm;
+        printf("%02X,", bytes_ptr[0]);
+        bytes_ptr = (unsigned char*)&fp.flight_state;
+        printf("%02X,", bytes_ptr[0]);
+        
+        bytes_ptr = (unsigned char*)&fp.acc.x;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.acc.y;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.acc.z;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.acc.x);
-        printf("%f,", fp.acc.y);
-        printf("%f,", fp.acc.z);
+        bytes_ptr = (unsigned char*)&fp.gyr.x;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.gyr.y;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.gyr.z;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.gyr.x);
-        printf("%f,", fp.gyr.y);
-        printf("%f,", fp.gyr.z);
+        bytes_ptr = (unsigned char*)&fp.mag.x;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.mag.y;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.mag.z;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.mag.x);
-        printf("%f,", fp.mag.y);
-        printf("%f,", fp.mag.z);
+        bytes_ptr = (unsigned char*)&fp.high_g_acc.x;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.high_g_acc.y;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.high_g_acc.z;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.high_g_acc.x);
-        printf("%f,", fp.high_g_acc.y);
-        printf("%f,", fp.high_g_acc.z);
+        bytes_ptr = (unsigned char*)&fp.baro.alt;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.baro.pressure;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.baro.temperature;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.baro.alt);
-        printf("%f,", fp.baro.pressure);
-        printf("%f,", fp.baro.temperature);
+        bytes_ptr = (unsigned char*)&fp.barometric_agl;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.barometric_velocity;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.average_barometric_velocity;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.barometric_agl);
-        printf("%f,", fp.barometric_velocity);
-        printf("%f,", fp.average_barometric_velocity);
+        bytes_ptr = (unsigned char*)&fp.orientation.roll;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.pitch;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.yaw;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.qw;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.qx;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.qy;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.orientation.qz;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.orientation.roll);
-        printf("%f,", fp.orientation.pitch);
-        printf("%f,", fp.orientation.yaw);
-        printf("%f,", fp.orientation.qw);
-        printf("%f,", fp.orientation.qx);
-        printf("%f,", fp.orientation.qy);
-        printf("%f,", fp.orientation.qz);
+        bytes_ptr = (unsigned char*)&fp.latitude;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
+        bytes_ptr = (unsigned char*)&fp.longitude;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.latitude);
-        printf("%f,", fp.longitude);
-        printf("%lu,", fp.gps_altitude);
+        bytes_ptr = (unsigned char*)&fp.gps_altitude;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
-        printf("%f,", fp.bat_voltage);
+        bytes_ptr = (unsigned char*)&fp.bat_voltage;
+        printf("%02x %02x %02x %02x,", bytes_ptr[0], bytes_ptr[1], bytes_ptr[2], bytes_ptr[3]);
 
         printf("\n");
     }
