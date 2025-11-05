@@ -396,7 +396,14 @@ void init_boot_sequence(void) {
     lis331_flight_init();
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    GPS_init();
+    if(GPS_init() != ESP_OK) {
+        for (int i = 0; i < 5; i++) {
+            error_beep();
+            printf("GPS FAILED!!!\n");
+            vTaskDelay(500 / portTICK_PERIOD_MS);
+        }
+        esp_restart();
+    }
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
 
