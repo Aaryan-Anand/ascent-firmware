@@ -469,10 +469,10 @@ bool should_wake_up() {
 }
 
 void activate_txlock() {
-  bmp_aquire_ground();
-  TXLOCK = flash_prepare_for_flight(); 
+	bmp_aquire_ground();
+	TXLOCK = flash_prepare_for_flight(); 
 	atomic_store(&thread_safe_txlock, true);
-	ble_stop();
+	ble_stop();	
 }
 
 void deactivate_txlock() {
