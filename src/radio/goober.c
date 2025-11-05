@@ -50,13 +50,6 @@ void turn_off_fan(void) {
     pyro_activate(PYRO_CHANNEL_4,1,1); 
 }
 
-void fake_tx_lock(void) { // DO NOT REMOVE, required to allow flight with only one way coms - Luke
-	bmp_aquire_ground();
-	TXLOCK = flash_prepare_for_flight();
-	atomic_store(&thread_safe_txlock, true);
-	printf("Faked tx lock ready to fly.\n");
-}
-
 void turn_on_cameras(void) {
     pyro_activate(PYRO_CHANNEL_3,0,1); 
     CAMERA_ACTIVE = true;
@@ -336,6 +329,8 @@ bool should_wake_up() {
 }
 
 void activate_txlock() {
+  bmp_aquire_ground();
+  TXLOCK = flash_prepare_for_flight(); 
 	atomic_store(&thread_safe_txlock, true);
 }
 
