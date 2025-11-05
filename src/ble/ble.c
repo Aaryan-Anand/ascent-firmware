@@ -281,3 +281,7 @@ ble_init(void)
 
     nimble_port_freertos_init(bleprph_host_task);
 }
+
+void ble_stop(void) {
+    nimble_port_stop();
+}

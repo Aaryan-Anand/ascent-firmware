@@ -7,6 +7,7 @@
 #include "sensor_manager.h"
 #include "flash_interface.h"
 #include "driver_psu.h"
+#include "ble.h"
 
 #define TELEM_PAYLOAD_SIZE sizeof(goober_post_telemetry_payload_t)
 #define SLAVE_DEV_ID 0x41
@@ -345,6 +346,7 @@ bool should_wake_up() {
 
 void activate_txlock() {
 	atomic_store(&thread_safe_txlock, true);
+	ble_stop();
 }
 
 void deactivate_txlock() {
