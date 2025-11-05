@@ -172,8 +172,7 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                 // there won't be a "response" but this a roundabout way of running goooberSlaveResponse
                 // normally we use REQ_TELEM to request and get a response, but BLE sends it by default so this logic is for non REQ_TELEM commmands
                 // this will need to be revisited - abdul
-                free(rx_buffer);
-                return BLE_ATT_ERR_UNLIKELY;
+                return 0;
             } else {
                 MODLOG_DFLT(WARN, "Write data too short to be a goober packet\n");
                 return BLE_ATT_ERR_UNLIKELY;
