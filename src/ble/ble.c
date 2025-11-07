@@ -31,6 +31,8 @@
 #include "goober.h"
 #include "lora_interface.h"
 
+#include <stdbool.h>
+
 goober_t get_goober_packet(goober_t request_packet) {
     goober_t packet;
     goober_payload_t telemetry_payload;
@@ -48,6 +50,9 @@ static const char *tag = "BLE HOST";
 static int bleprph_gap_event(struct ble_gap_event *event, void *arg);
 
 static uint8_t own_addr_type;
+
+static volatile uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+static volatile bool s_stop_pending = false;
 
 /**
  * Logs information about a connection to the console.
@@ -172,6 +177,7 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
                     event->connect.status == 0 ? "established" : "failed",
                     event->connect.status);
         if (event->connect.status == 0) {
+            s_conn_handle = event->connect.conn_handle;
             rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
             assert(rc == 0);
             bleprph_print_conn_desc(&desc);
@@ -180,6 +186,7 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
 
         if (event->connect.status != 0) {
             /* Connection failed; resume advertising. */
+            s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
             bleprph_advertise();
         }
 
@@ -192,7 +199,13 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
 
         /* Connection terminated; resume advertising. */
 
-        bleprph_advertise();
+        s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+        if (s_stop_pending) {
+            s_stop_pending = false;
+            nimble_port_stop();
+        } else {
+            bleprph_advertise();
+        }
 
         return 0;
 
@@ -209,7 +222,9 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_ADV_COMPLETE:
         MODLOG_DFLT(INFO, "advertise complete; reason=%d",
                     event->adv_complete.reason);
-        bleprph_advertise();
+        if (!s_stop_pending) {
+            bleprph_advertise();
+        }
         return 0;
 
 
@@ -283,6 +298,13 @@ ble_init(void)
 }
 
 void ble_stop(void) {
+    if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+        (void)ble_gap_terminate(s_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+        s_stop_pending = true;
+        return;
+    }
+    /* Optionally stop advertising if running; ignore return code */
+    (void)ble_gap_adv_stop();
     nimble_port_stop();
-    nimble_port_freertos_deinit();
+    /* Do not deinit here; host task calls nimble_port_freertos_deinit() after run loop exits */
 }

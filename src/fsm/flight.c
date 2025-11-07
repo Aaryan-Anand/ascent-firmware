@@ -120,8 +120,10 @@ bool flight_update(
 
             if (count1 >= cfg.lift_off_tick_count) {
                 flight_state = FS_BOOSTER;
-                activate_txlock();
-                printf("Activated txlock from FSM\n");
+                if(!is_tx_lock()) {
+                    activate_txlock();
+                    printf("Activated txlock from FSM\n");
+                }
             } else if (!should_wake_up() && count1 == 0) {
                 flight_state = FS_PREFLIGHT;
             }
