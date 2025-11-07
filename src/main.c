@@ -577,10 +577,10 @@ void primary_flight(uint32_t *cycle, GPS_data_t *gps_data, uint8_t *flight_state
         local_acc.x = get_current_vertical_accl();
         printf("Serial: %f\n", local_acc.x);
         #else
-        bno055_get_local(&local_acc, &local_gyr, &local_mag, true);
+        bno055_get_local(&local_acc, &local_gyr, &local_mag, false);
         #endif
 
-        h3lis331dl_get_local(&high_g_acc, true);
+        h3lis331dl_get_local(&high_g_acc, false);
 
         // bmp390_get_local(&baro);
         #ifdef IS_SITL
