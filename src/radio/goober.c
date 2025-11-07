@@ -139,13 +139,10 @@ goober_t gooberSlaveResponse(goober_t master_msg, goober_payload_t telemetry) {
 			#ifdef LORA_DEBUG
 			printf("Received REQ_TXLOCK_ACTIVATE\n");
 			#endif
-			bmp_aquire_ground();
-			TXLOCK = flash_prepare_for_flight();
-			ble_stop();
+			activate_txlock();
 			resp_msg_cls = MSG_TYPE_POST_TELEM;
 			resp_payload = telemetry;
 			resp_msg_payload_len = TELEM_PAYLOAD_SIZE;
-			atomic_store(&thread_safe_txlock, true);
 			break;
 		}
 		case MSG_TYPE_REQ_REBOOT: {
@@ -471,8 +468,11 @@ bool should_wake_up() {
 
 void activate_txlock() {
 	bmp_aquire_ground();
+	vTaskDelay(1 / portTICK_PERIOD_MS);
 	TXLOCK = flash_prepare_for_flight(); 
+	vTaskDelay(1 / portTICK_PERIOD_MS);
 	atomic_store(&thread_safe_txlock, true);
+	vTaskDelay(1 / portTICK_PERIOD_MS);
 	ble_stop();	
 }
 
