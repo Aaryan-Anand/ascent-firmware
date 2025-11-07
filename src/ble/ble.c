@@ -30,6 +30,7 @@
 
 #include "goober.h"
 #include "lora_interface.h"
+#include "nvs_interface.h"
 
 goober_t get_goober_packet(goober_t request_packet) {
     goober_t packet;
@@ -275,7 +276,13 @@ ble_init(void)
     assert(rc == 0);
 
     /* Set the default device name. */
-    rc = ble_svc_gap_device_name_set("ASCENT R2");
+
+    uint8_t uuid[16] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+    nvs_retreive_uuid(uuid);
+    char device_name[32];
+    sprintf(device_name, "ASCENT R2 %X.%X.%X-%X%X%X", uuid[10], uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
+
+    rc = ble_svc_gap_device_name_set(device_name);
     ble_svc_gap_device_appearance_set(0x0981); // light aircraft
     assert(rc == 0);
 
