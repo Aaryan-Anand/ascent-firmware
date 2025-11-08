@@ -356,11 +356,12 @@ void flash_print_stats() {
 void flash_blank_slate() {
     printf("CHIP ERASE, please be patient lol, this will take 5-10min lol, DO NOT POWER OFF....\n");
     w25qxx_chip_erase();
-
     nvs_set_i32(my_handle, "bank", 0);
     for (int i = 0; i < BANKS; i++) {
         nvs_set_i32(my_handle, bank_keys[i], 0);
     }
+    printf("Done\n");
+    flash_erase_jingle();
 }
 
 void try_to_dump_data() {
