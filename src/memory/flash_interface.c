@@ -186,7 +186,78 @@ static esp_err_t flash_erase_bank(int bank, int64_t max_time, int32_t *resume) {
     }
 }
 
+#ifndef NEW_FLASH_DUMP
+void flash_dump_to_serial(int bank) {
+    flash_packet fp;
 
+    printf("DUMPING DATA FROM BANK: %d\n", bank);
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+    addr = BANK_SIZE*bank;
+    printf("n, timestamp, pyro_arm, flight_state, acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, mag_x, mag_y, mag_z, high_g_acc_x, high_g_acc_y, high_g_acc_z, baro_alt, baro_pressure, baro_temperature, barometric_agl, barometric_velocity, average_barometric_velocity, yaw, pitch, roll, lat, long, gps_alt, volt\n");
+    while (addr < MAX_SECTORS*SECTOR_SIZE && addr < BANK_SIZE*bank + BANK_SIZE) {
+        w25qxx_read(addr, (uint8_t*)&fp, sizeof(flash_packet));
+        addr += sizeof(flash_packet);
+
+        bool all = true;
+        char* buf = (char*) &fp;
+        for (int i = 0; i < sizeof(flash_packet); i++) {
+            if (buf[i] != 0xFF) all=false;
+        }
+        if (all) break;
+
+        printf("%lu,", fp.n);
+        printf("%"PRId64",", fp.timestamp);
+        printf("%d,", fp.pyro_arm);
+        printf("%d,", fp.flight_state);
+
+        printf("%f,", fp.acc.x);
+        printf("%f,", fp.acc.y);
+        printf("%f,", fp.acc.z);
+
+        printf("%f,", fp.gyr.x);
+        printf("%f,", fp.gyr.y);
+        printf("%f,", fp.gyr.z);
+
+        printf("%f,", fp.mag.x);
+        printf("%f,", fp.mag.y);
+        printf("%f,", fp.mag.z);
+
+        printf("%f,", fp.high_g_acc.x);
+        printf("%f,", fp.high_g_acc.y);
+        printf("%f,", fp.high_g_acc.z);
+
+        printf("%f,", fp.baro.alt);
+        printf("%f,", fp.baro.pressure);
+        printf("%f,", fp.baro.temperature);
+
+        printf("%f,", fp.barometric_agl);
+        printf("%f,", fp.barometric_velocity);
+        printf("%f,", fp.average_barometric_velocity);
+
+        printf("%f,", fp.orientation.roll);
+        printf("%f,", fp.orientation.pitch);
+        printf("%f,", fp.orientation.yaw);
+        printf("%f,", fp.orientation.qw);
+        printf("%f,", fp.orientation.qx);
+        printf("%f,", fp.orientation.qy);
+        printf("%f,", fp.orientation.qz);
+
+        printf("%f,", fp.latitude);
+        printf("%f,", fp.longitude);
+        printf("%lu,", fp.gps_altitude);
+
+        printf("%f,", fp.bat_voltage);
+
+        printf("\n");
+    }
+
+    flash_erase_jingle();
+
+    printf("FINISHED DUMPING DATA\n");
+}
+
+#else
 void flash_dump_to_serial(int bank) {
     flash_packet fp;
 
@@ -293,6 +364,7 @@ void flash_dump_to_serial(int bank) {
 
     printf("FINISHED DUMPING DATA\n");
 }
+#endif
 
 void flash_write_packet(flash_packet *packet) {
     if (addr >= current_bank*BANK_SIZE + BANK_SIZE) {
