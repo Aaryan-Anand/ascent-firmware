@@ -1,8 +1,6 @@
 .pio
 .vscode
-sdkconfig.esp32-s3-devkitc-1
 build
 ascent-configure/.pio
 ascent-configure/.vscode
-ascent-configure/sdkconfig.esp32-s3-devkitc-1
 ascent-configure/build
