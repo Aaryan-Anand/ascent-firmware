@@ -81,7 +81,7 @@ static tNeopixelContext neopixel;
 //MARK: - DEBUG Defines
 // #define GENERAL_DEBUG
 //#define FUSION_DEBUG
-//#define DEBUG
+#define DEBUG
 
 
 
