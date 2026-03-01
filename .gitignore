@@ -4,3 +4,8 @@ build
 ascent-configure/.pio
 ascent-configure/.vscode
 ascent-configure/build
+# SITL CSV profiles (generated/large)
+sitl/booster.csv
+sitl/sustainer.csv
+booster.csv
+sustainer.csv
